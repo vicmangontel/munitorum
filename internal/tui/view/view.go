@@ -34,3 +34,14 @@ func (p Placeholder) Update(tea.Msg) (View, tea.Cmd) { return p, nil }
 func (p Placeholder) View() string                   { return text.PlaceholderBody }
 func (p Placeholder) KeyHints() []Hint               { return nil }
 func (p Placeholder) Title() string                  { return p.title }
+
+// Content is interactive content hosted by an overlay or a full-screen flow.
+// It is held by pointer and changes in place, so the host can keep a single
+// reference while Bubble Tea copies its own model.
+type Content interface {
+	// Update handles a message and returns the command to run, if any.
+	Update(msg tea.Msg) tea.Cmd
+	View() string
+	// KeyHints lists the keys the content accepts, for the hint bar.
+	KeyHints() []Hint
+}

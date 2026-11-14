@@ -3,7 +3,7 @@ type: spec
 module: setup
 status: draft
 entities: Settings, Account, House, FeeRate
-operations: GetSetupState, CompleteSetup, GetSettings, UpdateCommunityName, RenameAccount, UpdateOpeningBalance
+operations: GetSetupState, ValidateSetup, CompleteSetup, GetSettings, UpdateCommunityName, RenameAccount, UpdateOpeningBalance
 depends-on: none
 ---
 
@@ -34,7 +34,8 @@ The migrator itself creates `schema_migrations` (Phase 0).
 | Use case | Actor | Input | Business rules | Output |
 |---|---|---|---|---|
 | `GetSetupState` | System at startup | — | Returns `completed` when the settings row exists | `{Completed bool}` |
-| `CompleteSetup` | Treasurer (wizard) | `CommunityName`, `HouseCount`, `HousePrefix`, `FeeAmount`, `Accounts[2]{Name, Kind}`, `OpeningDate`, `OpeningBalances[2]`, `Houses[]{Number, CoveredThrough, Credit, Arrears}` | Rules 1–9. Rejected when setup already completed. One transaction. | Created settings |
+| `ValidateSetup` | Treasurer (wizard, each step) | Same `SetupInput` as `CompleteSetup` | Rules 1–9. Writes nothing. | Every invalid field, or the `SetupSummary` shown on step 7 when valid |
+| `CompleteSetup` | Treasurer (wizard) | `SetupInput`: `CommunityName`, `HouseCount`, `HousePrefix`, `FeeAmount`, `Accounts[2]{Name, OpeningBalance}`, `OpeningDate`, `Houses[]{CoveredThrough, Credit, Arrears}` | Rules 1–9. Rejected with `ErrConflict` when setup already completed. One transaction. | Created settings |
 | `GetSettings` | Any view | — | — | Settings + accounts |
 | `UpdateCommunityName` | Treasurer | `Name` | Rule 1 | Updated settings |
 | `RenameAccount` | Treasurer | `AccountID`, `Name` | Rule 5 | Updated account |
@@ -44,6 +45,26 @@ The migrator itself creates `schema_migrations` (Phase 0).
 
 No HTTP API. Operations are methods on `app.SetupService`, called from the TUI.
 Operation names match the use cases above.
+
+`SetupInput` carries every field as the typed string, so one validation reports
+unreadable and out-of-range values alike. House row `i` is house number `i + 1`.
+Account 0 is the `cash` account and account 1 the `bank` account; kinds are fixed
+by position. Empty `Credit` and `Arrears` mean zero.
+
+`SetupSummary` (step 7): house count, cuota, opening balance per account and total,
+houses with a `CoveredThrough` month, total credit, total opening arrears.
+
+Validation errors are returned as codes per field key (`community_name`,
+`houses[3].credit`, …); the TUI maps each code to its Spanish message in
+`internal/tui/text`.
+
+Date and month input: dates are typed `DD/MM/AAAA` and months `MM/AAAA`
+(`15/05/2026`, `05/2026`); they are stored as `YYYY-MM-DD` and `YYYY-MM`.
+
+Migration `001_setup.sql` adds two constraints beyond the entity table:
+`accounts.name` is `UNIQUE COLLATE NOCASE` (rule 5's full case-insensitive check
+stays in the application), and the opening credit and arrears columns are
+`CHECK (>= 0)`.
 
 ## UI Views
 
@@ -60,6 +81,17 @@ Operation names match the use cases above.
 
 The wizard runs full-screen (no main shell) and keeps all input in memory until
 step 7 is confirmed. Moving back keeps entered values.
+
+- `←` goes back a step only when the cursor is before the first character of the
+  first field; `shift+tab` goes back from the first field. Elsewhere both keys move
+  inside the step.
+- `esc` + `Sí` quits the application and writes nothing (rule 11).
+- The opening date is prefilled with today.
+- Changing the house count after step 6 keeps the values of house numbers that
+  still exist.
+- After step 7 the shell opens without a restart. Its summary panel shows the
+  coto name as title, each account with its opening balance, and the total; the
+  `Disponible` row stays a `$0.00` placeholder until Phase 3 computes it.
 
 ## Business Rules
 

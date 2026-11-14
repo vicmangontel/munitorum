@@ -5,6 +5,7 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/vicmangontel/munitorum/internal/app"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
 	"github.com/vicmangontel/munitorum/internal/tui/view"
 )
@@ -31,7 +32,8 @@ type Model struct {
 	selected      int
 	focus         panel
 	width, height int
-	overlay       *overlay // nil when no overlay is open
+	overlay       *overlay      // nil when no overlay is open
+	settings      *app.Settings // nil until the coto exists
 }
 
 // New returns the root model with one placeholder view per entry of the view
@@ -70,8 +72,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.overlay != nil {
-		if key == "esc" || key == "?" {
+		switch {
+		case key == "esc", key == "?" && m.overlay.content == nil:
 			m.overlay = nil
+		case m.overlay.content != nil:
+			return m, m.overlay.content.Update(msg)
 		}
 		return m, nil
 	}
@@ -110,4 +115,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// WithSettings returns the shell showing the coto: its name as the summary title
+// and its accounts in the summary panel.
+func (m Model) WithSettings(s app.Settings) Model {
+	m.settings = &s
+	return m
+}
+
+// openOverlay shows content in a centred overlay; esc closes it.
+func (m Model) openOverlay(title string, content view.Content) Model {
+	m.overlay = &overlay{title: title, content: content}
+	return m
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/vicmangontel/munitorum/internal/domain"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
 	"github.com/vicmangontel/munitorum/internal/tui/theme"
 	"github.com/vicmangontel/munitorum/internal/tui/view"
@@ -30,7 +31,7 @@ func (m Model) View() string {
 	rightWidth := m.width - leftWidth
 
 	left := lipgloss.JoinVertical(lipgloss.Left,
-		panelBox(text.SummaryTitle, summaryRows(leftWidth-2), leftWidth, summaryHeight, false),
+		panelBox(m.summaryTitle(), m.summaryRows(leftWidth-2), leftWidth, summaryHeight, false),
 		panelBox(text.PanelViews, m.viewList(), leftWidth, bodyHeight-summaryHeight, m.focus == panelViews),
 	)
 	current := m.views[m.selected]
@@ -84,12 +85,33 @@ func (m Model) viewList() string {
 	return strings.Join(rows, "\n")
 }
 
-// summaryRows is static until Phase 1 provides accounts and balances.
-func summaryRows(w int) string {
+func (m Model) summaryTitle() string {
+	if m.settings != nil {
+		return m.settings.CommunityName
+	}
+	return text.SummaryTitle
+}
+
+// summaryRows shows the opening balances; live balances arrive in Phase 3.
+func (m Model) summaryRows(w int) string {
+	cash, bank, total := text.AccountCash, text.AccountBank, text.AmountPending
+	cashAmount, bankAmount := text.AmountPending, text.AmountPending
+	if m.settings != nil {
+		var sum domain.Money
+		for i, a := range m.settings.Accounts {
+			sum += a.OpeningBalance
+			if i == 0 {
+				cash, cashAmount = a.Name, a.OpeningBalance.Format()
+			} else {
+				bank, bankAmount = a.Name, a.OpeningBalance.Format()
+			}
+		}
+		total = sum.Format()
+	}
 	return strings.Join([]string{
-		amountRow(text.AccountCash, text.AmountPending, w, lipgloss.NewStyle()),
-		amountRow(text.AccountBank, text.AmountPending, w, lipgloss.NewStyle()),
-		amountRow(text.AccountTotal, text.AmountPending, w, theme.AmountTotal),
+		amountRow(cash, cashAmount, w, lipgloss.NewStyle()),
+		amountRow(bank, bankAmount, w, lipgloss.NewStyle()),
+		amountRow(text.AccountTotal, total, w, theme.AmountTotal),
 		amountRow(text.Available, text.AmountPending, w, theme.AmountTotal),
 	}, "\n")
 }
@@ -105,7 +127,11 @@ func amountRow(label, amount string, w int, style lipgloss.Style) string {
 func (m Model) hintBar() string {
 	var hints []view.Hint
 	if m.overlay != nil {
-		return m.renderHints([]view.Hint{{Key: text.KeyEsc, Desc: text.HintClose}})
+		close := view.Hint{Key: text.KeyEsc, Desc: text.HintClose}
+		if m.overlay.content != nil {
+			return m.renderHints(append(m.overlay.content.KeyHints(), close))
+		}
+		return m.renderHints([]view.Hint{close})
 	}
 	switch m.focus {
 	case panelViews:

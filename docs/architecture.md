@@ -271,6 +271,9 @@ one place and lets views stay free of colour literals.
   `db_file` (base name only, never the full path), `migrations_applied`, and `error` on
   failure. A failed prune of old log files emits `action=log_prune`, `outcome=error`,
   `error` at `Warn` and does not stop startup.
+- The setup wizard emits `action=complete_setup`: `outcome`, `duration_ms`,
+  `house_count`, `fee_amount_cents`, `opening_balance_cash_cents`,
+  `opening_balance_bank_cents`, and `invalid_field_count` on a validation failure.
 
 ## Testing Conventions
 
@@ -313,6 +316,11 @@ phase. No repository-wide score gate.
 month types with their property tests), default mutators — 57 killed, 0 lived, 0 not
 covered, 0 timed out; efficacy 100%, mutator coverage 100%; identical over three
 runs, about 16 s. No survivors to investigate. Next scoped run: the fee allocation rule.
+**Phase 1 Step 1 (2026-11-14):** `./internal/app` — 37 killed, 0 lived, 2 not covered,
+efficacy 100% (two survivors at the one-character-name boundary were killed by added
+tests). `./internal/domain` — 69 killed, 0 lived, 9 not covered, efficacy 100%; the 9
+not-covered mutants are all in the `HouseOpening.Check` switch, which `go tool cover`
+reports at 100%, so they are treated as a Gremlins coverage-mapping artifact.
 
 ## Known Deviations
 
@@ -325,13 +333,17 @@ coverage from `just test-coverage`.
 
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
-| Domain types (`internal/domain`: money, month) | tested — 98.5%; mutation 57/57 killed | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
-| TUI shell (`internal/tui`: root, layout, overlay, startup error) | tested — 94.3% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
-| Text (`internal/tui/text`) | partial — 50% | Help and size strings checked through shell tests; excluded from mutation |
+| Domain (`internal/domain`: money, month, house code, opening rules, date/month input) | tested — 98.9%; mutation 69 killed, 0 lived | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
+| Setup service (`internal/app`: `SetupService`, `ValidationError`, clock) | tested — 92.1%; mutation 37 killed, 0 lived | `ErrNotFound` reached only through `LoadSettings`; Ajustes operations arrive in Phase 1 Step 2 |
+| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error) | tested — 96.4% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Setup wizard (`internal/tui/wizard`) | tested — 93.0% | Interactive end-to-end run in Windows Terminal (manual only) |
+| Form (`internal/tui/form`) | tested — 83.9% | Rarely used cursor paths |
+| Confirmation (`internal/tui/confirm`) | partial — 58.8% | Unit-tested only; first hosted in an overlay by Ajustes in Phase 1 Step 2 |
+| Text (`internal/tui/text`) | partial — 28.6% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
 | Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
-| Startup (`cmd/munitorum`) | partial — 35.7% | `openDatabase` tested; `main`, `run`, and default path resolution are interactive wiring, untested |
-| Store (`internal/store`) | partial — 78.7% | Migration failure and rollback paths |
-| Dev fixtures (`cmd/devseed`) | partial — 50% | `main` wiring; recreate-and-migrate tested |
+| Startup (`cmd/munitorum`) | partial — 40.0% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
+| Store (`internal/store`) | partial — 40.7% in-package | Setup repository is covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
+| Dev fixtures (`cmd/devseed`) | partial — 66.7% | `main` wiring; recreate, migrate, and the 18-house `CompleteSetup` seed tested |
 
 ## In-flight Work
 

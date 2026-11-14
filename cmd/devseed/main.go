@@ -4,11 +4,18 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/vicmangontel/munitorum/internal/app"
+	"github.com/vicmangontel/munitorum/internal/domain"
 	"github.com/vicmangontel/munitorum/internal/store"
 )
 
@@ -46,5 +53,41 @@ func reset(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := seedCoto(context.Background(), db, time.Now()); err != nil {
+		return nil, err
+	}
 	return applied, nil
+}
+
+// seedCoto completes setup for 18 houses opened on the first of the current month,
+// with a mix of opening states: up to date, two months behind, a year prepaid,
+// never paid, and opening arrears or credit.
+func seedCoto(ctx context.Context, db *sql.DB, now time.Time) error {
+	opening := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	yearAhead := domain.Of(opening).Add(11)
+
+	houses := make([]app.SetupHouse, 18)                                                          // the rest are up to date: nothing covered, nothing owed
+	houses[1] = app.SetupHouse{Arrears: "300.00"}                                                 // two months behind
+	houses[2] = app.SetupHouse{CoveredThrough: yearAhead.InputString()}                           // a year prepaid
+	houses[3] = app.SetupHouse{Arrears: "900.00"}                                                 // never paid
+	houses[4] = app.SetupHouse{Arrears: "75.50"}                                                  // opening arrears
+	houses[5] = app.SetupHouse{CoveredThrough: domain.Of(opening).InputString(), Credit: "50.00"} // covered plus credit
+
+	svc := app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	_, err := svc.CompleteSetup(ctx, app.SetupInput{
+		CommunityName: "Coto de Desarrollo",
+		HouseCount:    "18",
+		HousePrefix:   "CASA ",
+		FeeAmount:     "150.00",
+		Accounts: [2]app.SetupAccount{
+			{Name: "Efectivo", OpeningBalance: "7,500.00"},
+			{Name: "Banco (NU)", OpeningBalance: "12,000.00"},
+		},
+		OpeningDate: domain.FormatInputDate(opening),
+		Houses:      houses,
+	})
+	if err != nil {
+		return fmt.Errorf("seed coto: %w", err)
+	}
+	return nil
 }

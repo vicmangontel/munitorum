@@ -2,11 +2,11 @@
 type: plan
 phase: 1
 module: setup
-status: not-started
+status: in-progress
 spec: docs/specs/setup.md
 depends-on: phase-0
 steps: 2
-current-step: 1
+current-step: 2
 ---
 
 # Phase 1 — Setup (wizard)
@@ -35,7 +35,7 @@ no write), and the wizard shows the errors for the fields of the current step.
 
 | Step | Slice | Spec | Status |
 |---|---|---|---|
-| 1 | The wizard creates the coto — carries the spine | `docs/specs/setup.md` | not-started |
+| 1 | The wizard creates the coto — carries the spine | `docs/specs/setup.md` | done |
 | 2 | Ajustes | `docs/specs/setup.md` | not-started |
 
 ## Step 1 — The wizard creates the coto
@@ -44,33 +44,33 @@ Spec sections: Entities, Use Cases (`GetSetupState`, `CompleteSetup`, `GetSettin
 UI Views (Wizard 1–7), Business Rules 1–11.
 
 ### Domain and application tasks
-- [ ] Migration `internal/store/migrations/001_setup.sql`: `settings`, `accounts`, `houses`, `fee_rates` with the checks and unique constraints in the spec (ask first)
-- [ ] `internal/app`: `ValidationError` carrying every invalid field (field key → message, row-indexed keys for house rows); sentinel `ErrNotFound`, `ErrConflict`; `Clock` interface with the system clock
-- [ ] `internal/domain`: house code (`prefix + number` zero-padded to `max(2, digits(count))`) and per-house opening rules 8–9 as pure functions, reused by houses in Phase 4
-- [ ] `app.SetupService` with its repository interface declared in `app`; `GetSetupState`; `GetSettings` (settings + accounts in `sort_order`)
-- [ ] `ValidateSetup` and `CompleteSetup`: rules 1–9, every invalid field at once; `CompleteSetup` rejects a completed database with `ErrConflict` and writes settings, 2 accounts, N houses, and 1 `initial` fee rate in one transaction
-- [ ] `internal/store`: SQLite implementation of the setup repository
-- [ ] Wide event `action=complete_setup`: `outcome`, `duration_ms`, `house_count`, `fee_amount_cents`, opening balance per account in centavos; no names
-- [ ] `cmd/devseed`: run `CompleteSetup` for 18 houses with mixed opening states — up to date, two months behind, a year prepaid, never paid, opening arrears
+- [x] Migration `internal/store/migrations/001_setup.sql`: `settings`, `accounts`, `houses`, `fee_rates` with the checks and unique constraints in the spec (ask first)
+- [x] `internal/app`: `ValidationError` carrying every invalid field (field key → message, row-indexed keys for house rows); sentinel `ErrNotFound`, `ErrConflict`; `Clock` interface with the system clock
+- [x] `internal/domain`: house code (`prefix + number` zero-padded to `max(2, digits(count))`) and per-house opening rules 8–9 as pure functions, reused by houses in Phase 4
+- [x] `app.SetupService` with its repository interface declared in `app`; `GetSetupState`; `GetSettings` (settings + accounts in `sort_order`)
+- [x] `ValidateSetup` and `CompleteSetup`: rules 1–9, every invalid field at once; `CompleteSetup` rejects a completed database with `ErrConflict` and writes settings, 2 accounts, N houses, and 1 `initial` fee rate in one transaction
+- [x] `internal/store`: SQLite implementation of the setup repository
+- [x] Wide event `action=complete_setup`: `outcome`, `duration_ms`, `house_count`, `fee_amount_cents`, opening balance per account in centavos; no names
+- [x] `cmd/devseed`: run `CompleteSetup` for 18 houses with mixed opening states — up to date, two months behind, a year prepaid, never paid, opening arrears
 
 ### TUI tasks
-- [ ] Overlay host accepts an interactive model (forms, confirmation), not only static lines; `esc` still closes; key-hint bar shows the overlay's keys
-- [ ] Form component `internal/tui/form`: labelled text fields, `tab`/`shift+tab`, error text under each field from `app.ValidationError`, cursor to the first invalid field
-- [ ] Confirmation component (`Sí` / `No`, `No` selected by default)
-- [ ] Startup routing in `cmd/munitorum`: after migrations, `GetSetupState` → wizard when not completed, shell when completed; a finished wizard opens the shell without restarting
-- [ ] Wizard steps 1–5 (Coto; Casas with live code preview; Cuota; Cuentas with defaults `Efectivo`, `Banco (NU)`; Apertura): `enter` next after `ValidateSetup` passes for the step, `shift+tab`/`←` back keeping values, `esc` cancels after confirmation and writes nothing
-- [ ] Wizard step 6 Casas al abrir: one row per house with `Cubierto hasta`, `Crédito`, `Adeudo inicial`; `↑/↓` row, `tab` field; errors shown on their row
-- [ ] Wizard step 7 Resumen: houses, cuota, balance per account and total, houses with coverage, total credit, total opening arrears; `enter` calls `CompleteSetup`; a returned error moves to the step holding the first invalid field
-- [ ] Summary panel: coto name as title, one row per account with its opening balance, total (live balances arrive in Phase 3)
-- [ ] All wizard and summary strings in `internal/tui/text`
+- [x] Overlay host accepts an interactive model (forms, confirmation), not only static lines; `esc` still closes; key-hint bar shows the overlay's keys
+- [x] Form component `internal/tui/form`: labelled text fields, `tab`/`shift+tab`, error text under each field from `app.ValidationError`, cursor to the first invalid field
+- [x] Confirmation component (`Sí` / `No`, `No` selected by default)
+- [x] Startup routing in `cmd/munitorum`: after migrations, `GetSetupState` → wizard when not completed, shell when completed; a finished wizard opens the shell without restarting
+- [x] Wizard steps 1–5 (Coto; Casas with live code preview; Cuota; Cuentas with defaults `Efectivo`, `Banco (NU)`; Apertura): `enter` next after `ValidateSetup` passes for the step, `shift+tab`/`←` back keeping values, `esc` cancels after confirmation and writes nothing
+- [x] Wizard step 6 Casas al abrir: one row per house with `Cubierto hasta`, `Crédito`, `Adeudo inicial`; `↑/↓` row, `tab` field; errors shown on their row
+- [x] Wizard step 7 Resumen: houses, cuota, balance per account and total, houses with coverage, total credit, total opening arrears; `enter` calls `CompleteSetup`; a returned error moves to the step holding the first invalid field
+- [x] Summary panel: coto name as title, one row per account with its opening balance, total (live balances arrive in Phase 3)
+- [x] All wizard and summary strings in `internal/tui/text`
 
 ### Test tasks
-- [ ] `internal/domain` table tests: codes for `CASA ` ×18, `C-` ×18, count 120 (3 digits), empty prefix; opening rules (coverage before the opening month, beyond +36 months, credit ≥ cuota, arrears with coverage)
-- [ ] `internal/app` tests on a migrated temp database: every Step 1 acceptance criterion; a forced failure mid-write (test trigger raising on `fee_rates` insert) leaves no rows; second `CompleteSetup` rejected; future opening date rejected
-- [ ] TUI tests: form shows every error at once; wizard back keeps values; `esc` + `Sí` writes nothing; step 7 confirm opens the shell; startup routing for fresh and completed databases
+- [x] `internal/domain` table tests: codes for `CASA ` ×18, `C-` ×18, count 120 (3 digits), empty prefix; opening rules (coverage before the opening month, beyond +36 months, credit ≥ cuota, arrears with coverage)
+- [x] `internal/app` tests on a migrated temp database: every Step 1 acceptance criterion; a forced failure mid-write (test trigger raising on `fee_rates` insert) leaves no rows; second `CompleteSetup` rejected; future opening date rejected
+- [x] TUI tests: form shows every error at once; wizard back keeps values; `esc` + `Sí` writes nothing; step 7 confirm opens the shell; startup routing for fresh and completed databases
 
 ### Done when
-- [ ] `go build ./...`, `go vet ./...`, `just test` pass
+- [x] `go build ./...`, `go vet ./...`, `just test` pass
 - [ ] A fresh `--db` path runs the wizard, writes the coto, and opens the shell with its name and opening balances; relaunching opens the shell directly
 
 ## Step 2 — Ajustes

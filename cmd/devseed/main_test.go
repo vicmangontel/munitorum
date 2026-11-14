@@ -58,3 +58,30 @@ func TestReset_CreatesTheDevFolderWhenMissing(t *testing.T) {
 		t.Fatalf("database not created: %v", err)
 	}
 }
+
+func TestReset_SeedsAnEighteenHouseCotoWithMixedOpeningStates(t *testing.T) {
+	// Arrange
+	path := filepath.Join(t.TempDir(), "munitorum-dev.db")
+
+	// Act
+	_, err := reset(path)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var houses, covered, withArrears, withCredit int
+	if err := db.QueryRow(`SELECT COUNT(*), COUNT(opening_covered_through),
+		SUM(opening_arrears_cents > 0), SUM(opening_credit_cents > 0) FROM houses`).
+		Scan(&houses, &covered, &withArrears, &withCredit); err != nil {
+		t.Fatal(err)
+	}
+	if houses != 18 || covered != 2 || withArrears != 3 || withCredit != 1 {
+		t.Fatalf("houses=%d covered=%d arrears=%d credit=%d; want 18 2 3 1", houses, covered, withArrears, withCredit)
+	}
+}

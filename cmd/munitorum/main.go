@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/vicmangontel/munitorum/internal/app"
 	"github.com/vicmangontel/munitorum/internal/logging"
 	"github.com/vicmangontel/munitorum/internal/store"
 	"github.com/vicmangontel/munitorum/internal/tui"
@@ -53,7 +54,12 @@ func run() error {
 	}
 	defer db.Close()
 
-	_, err = tea.NewProgram(tui.New(), tea.WithAltScreen()).Run()
+	svc := app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log)
+	model, err := startModel(context.Background(), svc, time.Now())
+	if err != nil {
+		return err
+	}
+	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
 }
 
@@ -98,4 +104,22 @@ func defaultDBPath() (string, error) {
 		return "", fmt.Errorf("locate executable: %w", err)
 	}
 	return filepath.Join(filepath.Dir(exe), "munitorum.db"), nil
+}
+
+// startModel picks the first screen: the setup wizard while no coto exists, the
+// shell once setup has completed. It runs only after the migrations succeeded
+// (setup rule 10), so a database that cannot be read never reaches the wizard.
+func startModel(ctx context.Context, svc *app.SetupService, today time.Time) (tea.Model, error) {
+	state, err := svc.GetSetupState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !state.Completed {
+		return tui.NewWizard(svc, today), nil
+	}
+	settings, err := svc.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return tui.NewShell(settings), nil
 }

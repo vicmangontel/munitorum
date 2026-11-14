@@ -12,12 +12,16 @@ import (
 // overlay is a centred box drawn over the shell; esc closes it. Forms and
 // confirmations from later phases open through the same host.
 type overlay struct {
-	title string
-	lines []string
+	title   string
+	lines   []string
+	content view.Content // interactive content; nil for static lines
 }
 
 func (o *overlay) render() string {
 	body := theme.Title.Render(o.title) + "\n\n" + strings.Join(o.lines, "\n")
+	if o.content != nil {
+		body = theme.Title.Render(o.title) + "\n\n" + o.content.View()
+	}
 	return theme.Overlay.Render(body)
 }
 

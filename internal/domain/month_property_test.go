@@ -71,3 +71,15 @@ func TestMonthClampDay_StaysInsideTheMonth(t *testing.T) {
 		}
 	})
 }
+
+func TestParseInputMonth_RoundTripsInputString(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		m := drawMonth(t)
+
+		got, err := ParseInputMonth(m.InputString())
+
+		if err != nil || got != m {
+			t.Fatalf("ParseInputMonth(%q) = %v, %v; want %v", m.InputString(), got, err, m)
+		}
+	})
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,7 +10,12 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/vicmangontel/munitorum/internal/app"
 	"github.com/vicmangontel/munitorum/internal/logging"
+	"github.com/vicmangontel/munitorum/internal/store"
+	"github.com/vicmangontel/munitorum/internal/tui"
 )
 
 var started = time.Date(2026, time.November, 13, 9, 30, 0, 0, time.Local)
@@ -161,5 +167,71 @@ func TestOpenDatabase_FailsWhenTheFolderDoesNotExist(t *testing.T) {
 	// Assert
 	if err == nil {
 		t.Fatal("expected an error when the database cannot be created")
+	}
+}
+
+func newTestService(t *testing.T) *app.SetupService {
+	t.Helper()
+	dir := t.TempDir()
+	log, closeLog, err := logging.Open(filepath.Join(dir, "logs"), started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeLog.Close() })
+	db, err := openDatabase(filepath.Join(dir, "munitorum.db"), log, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log)
+}
+
+func TestStartModel_OpensTheWizardOnAFreshDatabase(t *testing.T) {
+	// Arrange
+	svc := newTestService(t)
+
+	// Act
+	model, err := startModel(context.Background(), svc, started)
+
+	// Assert
+	root, ok := model.(tui.Root)
+	if err != nil || !ok || !root.InWizard() {
+		t.Fatalf("model = %T, %v; want the wizard", model, err)
+	}
+}
+
+func TestStartModel_OpensTheShellWithTheCotoOnACompletedDatabase(t *testing.T) {
+	// Arrange
+	svc := newTestService(t)
+	_, err := svc.CompleteSetup(context.Background(), app.SetupInput{
+		CommunityName: "Coto Los Pinos",
+		HouseCount:    "2",
+		HousePrefix:   "C-",
+		FeeAmount:     "150",
+		Accounts: [2]app.SetupAccount{
+			{Name: "Efectivo", OpeningBalance: "7,500.00"},
+			{Name: "Banco (NU)", OpeningBalance: "0"},
+		},
+		OpeningDate: "01/01/2020",
+		Houses:      make([]app.SetupHouse, 2),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	model, err := startModel(context.Background(), svc, started)
+	sized, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	// Assert
+	root, ok := model.(tui.Root)
+	if err != nil || !ok || root.InWizard() {
+		t.Fatalf("model = %T, %v; want the shell", model, err)
+	}
+	view := sized.View()
+	for _, want := range []string{"Coto Los Pinos", "$7,500.00"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("shell does not show %q:\n%s", want, view)
+		}
 	}
 }
