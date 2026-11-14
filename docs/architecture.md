@@ -96,7 +96,10 @@ and dashboard figures are computed when a view loads or after a save.
 **Choice:** Yes — MXN only
 **Means for this project:** Amounts are `INTEGER` centavos in the database and
 `domain.Money` (`int64` centavos) in Go. Never `float64` for money, never `REAL`.
-Parsing accepts `1234`, `1234.5`, `1,234.50`, `$1,234.50`; display is `$1,234.50`.
+Parsing accepts `1234`, `1234.5`, `1,234.50`, `$1,234.50`, with an optional leading
+`-` or `−` (U+2212); display is `$1,234.50`, negatives `−$350.00`. `ParseMoney` accepts
+negatives so every formatted value parses back; forms that require positive amounts
+check that in their own validation.
 Rounding never happens implicitly; parsing more than 2 decimals is a validation error.
 
 ### Logging destination (Q10)
@@ -230,6 +233,9 @@ one place and lets views stay free of colour literals.
   `schema_migrations`. Applied files are never edited; a change is a new file.
 - Every multi-row write (a payment plus its notes, a wizard run, a transfer) runs in one
   transaction.
+- The database path is passed to the driver as a plain filename, never a `file:` URI,
+  so `#` and `%` in folder names are literal. A path containing `?` is rejected at open
+  with an error (the driver splits its DSN at `?`).
 
 ### Application layer
 - One exported method per operation, verb + noun: `RecordFeePayment`, `ListHouses`.
@@ -245,6 +251,10 @@ one place and lets views stay free of colour literals.
 ### TUI layer
 - One Bubble Tea model per view in `internal/tui/<view>`; the root model owns layout,
   focus, overlays, and the key-hint bar.
+- Views implement `view.View` (`internal/tui/view`: `Init`, `Update`, `View`,
+  `KeyHints`, `Title`) so view packages never import the root. Until a view's phase
+  builds it, the root shows a shared `view.Placeholder`; that phase replaces it with
+  its own package.
 - Views call `internal/app` through commands (`tea.Cmd`), never directly in `View()`.
 - No colour or border literals outside `internal/tui/theme`; no user-visible string
   literals outside `internal/tui/text`.
@@ -257,6 +267,10 @@ one place and lets views stay free of colour literals.
 - Levels: `Info` for success, `Warn` for validation failures, `Error` for failures.
 - Never log names, phones, emails, notes, or free-text descriptions. Ids only.
 - Single-user app: no `UserId` field.
+- Startup emits one event: `action=startup`, `outcome` (`ok` / `error`), `duration_ms`,
+  `db_file` (base name only, never the full path), `migrations_applied`, and `error` on
+  failure. A failed prune of old log files emits `action=log_prune`, `outcome=error`,
+  `error` at `Warn` and does not stop startup.
 
 ## Testing Conventions
 
@@ -288,23 +302,36 @@ property-based testing, and mutation testing.
 
 ### Mutation testing
 **Tool:** Gremlins (`github.com/go-gremlins/gremlins`), pinned as a Go tool dependency
-(`go get -tool`) in Phase 0. **Status:** to be piloted on a representative tested
-package before it is recorded as working. Command: `just test-mutation <package path>`.
-Exclusions: `cmd/`, `internal/tui/text`. Cadence: run on changed business rules in
-`internal/domain` and `internal/app` before closing a phase. First scoped run pending
-the fee allocation rule. No repository-wide score gate.
+(`go get -tool`) in Phase 0 — v0.6.0. **Status:** working on Windows. Command:
+`just test-mutation <package path>`, which runs
+`go tool gremlins unleash <path> --timeout-coefficient 20`; the default coefficient
+marks most mutants as timed out because each mutant is recompiled, and timed-out
+mutants are excluded from efficacy. Exclusions: `cmd/`, `internal/tui/text`. Cadence:
+run on changed business rules in `internal/domain` and `internal/app` before closing a
+phase. No repository-wide score gate.
+**Pilot (Phase 0, 2026-11-13):** `just test-mutation ./internal/domain` (money and
+month types with their property tests), default mutators — 57 killed, 0 lived, 0 not
+covered, 0 timed out; efficacy 100%, mutator coverage 100%; identical over three
+runs, about 16 s. No survivors to investigate. Next scoped run: the fee allocation rule.
 
 ## Known Deviations
 
-None. The codebase does not exist yet.
+None.
 
 ## Test Coverage Map
 
-Not applicable until Phase 0 is implemented. Populate one row per module as each
-phase completes.
+One row per module, updated as each phase completes. Percentages are statement
+coverage from `just test-coverage`.
 
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
+| Domain types (`internal/domain`: money, month) | tested — 98.5%; mutation 57/57 killed | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
+| TUI shell (`internal/tui`: root, layout, overlay, startup error) | tested — 94.3% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Text (`internal/tui/text`) | partial — 50% | Help and size strings checked through shell tests; excluded from mutation |
+| Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
+| Startup (`cmd/munitorum`) | partial — 35.7% | `openDatabase` tested; `main`, `run`, and default path resolution are interactive wiring, untested |
+| Store (`internal/store`) | partial — 78.7% | Migration failure and rollback paths |
+| Dev fixtures (`cmd/devseed`) | partial — 50% | `main` wiring; recreate-and-migrate tested |
 
 ## In-flight Work
 

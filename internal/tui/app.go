@@ -6,26 +6,108 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vicmangontel/munitorum/internal/tui/text"
+	"github.com/vicmangontel/munitorum/internal/tui/view"
 )
 
-// Model is the root model. Phase 0 replaces this placeholder with the shell.
-type Model struct{}
+// The shell needs at least this much terminal.
+const (
+	minWidth  = 80
+	minHeight = 24
+)
 
-// New returns the root model.
-func New() Model { return Model{} }
+// panel is a focusable area of the shell. The summary panel is not focusable.
+type panel int
 
-func (m Model) Init() tea.Cmd { return nil }
+const (
+	panelViews panel = iota
+	panelMain
+	panelDetail
+	panelCount
+)
+
+// Model is the root model.
+type Model struct {
+	views         [len(text.ViewNames)]view.View
+	selected      int
+	focus         panel
+	width, height int
+	overlay       *overlay // nil when no overlay is open
+}
+
+// New returns the root model with one placeholder view per entry of the view
+// list. Phases 1 to 8 replace the placeholders with real views.
+func New() Model {
+	m := Model{}
+	for i, name := range text.ViewNames {
+		m.views[i] = view.NewPlaceholder(name)
+	}
+	return m
+}
+
+func (m Model) Init() tea.Cmd {
+	cmds := make([]tea.Cmd, len(m.views))
+	for i, v := range m.views {
+		cmds[i] = v.Init()
+	}
+	return tea.Batch(cmds...)
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
-		switch key.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		}
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+	case tea.KeyMsg:
+		return m.updateKey(msg)
 	}
 	return m, nil
 }
 
-func (m Model) View() string {
-	return text.AppName + "\n\n" + text.Skeleton + "\n\n" + text.QuitHint + "\n"
+func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if key == "ctrl+c" {
+		return m, tea.Quit
+	}
+
+	if m.overlay != nil {
+		if key == "esc" || key == "?" {
+			m.overlay = nil
+		}
+		return m, nil
+	}
+
+	switch key {
+	case "q":
+		return m, tea.Quit
+	case "?":
+		m.overlay = m.helpOverlay()
+		return m, nil
+	case "tab":
+		m.focus = (m.focus + 1) % panelCount
+		return m, nil
+	case "shift+tab":
+		m.focus = (m.focus + panelCount - 1) % panelCount
+		return m, nil
+	case "1", "2", "3", "4", "5", "6", "7", "8":
+		m.selected = int(key[0] - '1')
+		m.focus = panelMain
+		return m, nil
+	}
+
+	switch m.focus {
+	case panelViews:
+		switch key {
+		case "up":
+			m.selected = max(m.selected-1, 0)
+		case "down":
+			m.selected = min(m.selected+1, len(m.views)-1)
+		case "enter":
+			m.focus = panelMain
+		}
+	case panelMain:
+		v, cmd := m.views[m.selected].Update(msg)
+		m.views[m.selected] = v
+		return m, cmd
+	}
+	return m, nil
 }

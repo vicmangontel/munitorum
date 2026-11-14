@@ -2,7 +2,7 @@
 type: plan
 phase: 0
 module: setup
-status: not-started
+status: in-progress
 depends-on: none
 ---
 
@@ -27,39 +27,39 @@ work.
 ## Tasks
 
 ### Verify the scaffold
-- [ ] `go build ./...` and `go vet ./...` pass with no output
+- [x] `go build ./...` and `go vet ./...` pass with no output
 - [ ] `just run` opens the placeholder TUI; `q` exits cleanly; `munitorum.db` and `logs/` appear next to the binary
-- [ ] `just test` passes (migrator and startup tests)
+- [x] `just test` passes (migrator and startup tests)
 
 ### Domain types
-- [ ] `internal/domain/money.go`: `Money` (`int64` centavos); `ParseMoney` (accepts `1234`, `1234.5`, `1,234.50`, `$1,234.50`; rejects >2 decimals, letters, empty); `Format` → `$1,234.50`, negative `−$350.00`
-- [ ] `internal/domain/month.go`: `Month` (year, month); `ParseMonth`/`String` (`YYYY-MM`); `Add(n)`; `Before`; `Of(date)`; `LastDay`; `ClampDay(d)`
-- [ ] Table-driven tests for both; property tests (`pgregory.net/rapid`): `ParseMoney(Format(m)) == m`; `Month.Add(a).Add(b) == Month.Add(a+b)`
+- [x] `internal/domain/money.go`: `Money` (`int64` centavos); `ParseMoney` (accepts `1234`, `1234.5`, `1,234.50`, `$1,234.50`; rejects >2 decimals, letters, empty); `Format` → `$1,234.50`, negative `−$350.00`
+- [x] `internal/domain/month.go`: `Month` (year, month); `ParseMonth`/`String` (`YYYY-MM`); `Add(n)`; `Before`; `Of(date)`; `LastDay`; `ClampDay(d)`
+- [x] Table-driven tests for both; property tests (`pgregory.net/rapid`): `ParseMoney(Format(m)) == m`; `Month.Add(a).Add(b) == Month.Add(a+b)`
 
 ### Spanish text and formatting
-- [ ] `internal/tui/text`: package with every shell string (view names, key hints, help, errors at startup); Spanish month names and abbreviations
-- [ ] Date and month display helpers: `12 nov 2026`, `nov 2026`
+- [x] `internal/tui/text`: package with every shell string (view names, key hints, help, errors at startup); Spanish month names and abbreviations
+- [x] Date and month display helpers: `12 nov 2026`, `nov 2026`
 
 ### Theme
-- [ ] `internal/tui/theme`: `AdaptiveColor` tokens `Accent`, `Muted`, `Positive`, `Negative`, `Warning` with the hex values from `docs/architecture.md` → Design System; panel styles (focused / unfocused border), title, key-hint, selected-row, amount styles
-- [ ] No colour literals anywhere else (`grep` check recorded in Done)
+- [x] `internal/tui/theme`: `AdaptiveColor` tokens `Accent`, `Muted`, `Positive`, `Negative`, `Warning` with the hex values from `docs/architecture.md` → Design System; panel styles (focused / unfocused border), title, key-hint, selected-row, amount styles
+- [x] No colour literals anywhere else (`grep` check recorded in Done)
 
 ### Application shell
-- [ ] Root model: layout (left column: summary panel over view list; right: main panel over detail panel; bottom: key-hint bar), resizes with the terminal, minimum size message below 80×24
-- [ ] Focus cycling (`tab` / `shift+tab`, `1`–`8` jump to view), view list navigation (`↑/↓`, `enter`)
-- [ ] View interface (`Init`, `Update`, `View`, `KeyHints`, `Title`) and eight placeholder views: Resumen, Casas, Movimientos, Cooperaciones, Obras, Recordatorios, Directorio, Pendientes
-- [ ] Overlay host (centred box over the shell, `esc` closes) and `?` help overlay listing global keys and the focused view's keys
-- [ ] Summary panel placeholder showing the coto title slot and account rows (static until Phase 1)
+- [x] Root model: layout (left column: summary panel over view list; right: main panel over detail panel; bottom: key-hint bar), resizes with the terminal, minimum size message below 80×24
+- [x] Focus cycling (`tab` / `shift+tab`, `1`–`8` jump to view), view list navigation (`↑/↓`, `enter`)
+- [x] View interface (`Init`, `Update`, `View`, `KeyHints`, `Title`) and eight placeholder views: Resumen, Casas, Movimientos, Cooperaciones, Obras, Recordatorios, Directorio, Pendientes
+- [x] Overlay host (centred box over the shell, `esc` closes) and `?` help overlay listing global keys and the focused view's keys
+- [x] Summary panel placeholder showing the coto title slot and account rows (static until Phase 1)
 
 ### Startup and infrastructure
-- [ ] Database path: executable folder by default, `--db` flag; error screen (not the wizard, not a panic) when the file exists but cannot be opened or migrated — path and error shown, any key exits
-- [ ] Logging: `log/slog` JSON to `logs/munitorum-YYYY-MM-DD.log`; delete files older than 30 days at startup; one wide event for startup (`action=startup`, `outcome`, `duration_ms`, `db_file` (base name only), `migrations_applied`)
-- [ ] `cmd/devseed` skeleton and `just reset-dev`: recreates `dev/munitorum-dev.db` and runs migrations (data sections added by each later phase)
+- [x] Database path: executable folder by default, `--db` flag; error screen (not the wizard, not a panic) when the file exists but cannot be opened or migrated — path and error shown, any key exits
+- [x] Logging: `log/slog` JSON to `logs/munitorum-YYYY-MM-DD.log`; delete files older than 30 days at startup; one wide event for startup (`action=startup`, `outcome`, `duration_ms`, `db_file` (base name only), `migrations_applied`)
+- [x] `cmd/devseed` skeleton and `just reset-dev`: recreates `dev/munitorum-dev.db` and runs migrations (data sections added by each later phase)
 
 ### Test tooling
-- [ ] TUI model tests: send key messages to the root model; assert focus moves, view switches, help overlay opens and closes, too-small message renders
-- [ ] `just test-coverage` writes `artifacts/coverage/coverage.out` and `artifacts/coverage/index.html`
-- [ ] Gremlins added as a Go tool dependency; pilot `just test-mutation ./internal/domain`; record result, survivors investigated, and any blocker under `docs/architecture.md` → Mutation testing
+- [x] TUI model tests: send key messages to the root model; assert focus moves, view switches, help overlay opens and closes, too-small message renders
+- [x] `just test-coverage` writes `artifacts/coverage/coverage.out` and `artifacts/coverage/index.html`
+- [x] Gremlins added as a Go tool dependency; pilot `just test-mutation ./internal/domain`; record result, survivors investigated, and any blocker under `docs/architecture.md` → Mutation testing
 
 ## Manual Test Scenarios
 
@@ -70,10 +70,12 @@ work.
 
 ## Definition of Done
 
-- [ ] `go build ./...` and `go vet ./...` clean
-- [ ] `just test` passes, including property tests
-- [ ] Coverage report generated; mutation pilot result recorded in `docs/architecture.md`
-- [ ] No colour literals outside `internal/tui/theme`; no user-visible string literals outside `internal/tui/text`
+- [x] `go build ./...` and `go vet ./...` clean
+- [x] `just test` passes, including property tests
+- [x] Coverage report generated; mutation pilot result recorded in `docs/architecture.md`
+- [x] No colour literals outside `internal/tui/theme`; no user-visible string literals outside `internal/tui/text`
+  - Colour check (2026-11-13, empty result): `grep -rnE '#[0-9a-fA-F]{3,8}\b|lipgloss\.(Adaptive)?Color|lipgloss\.[A-Za-z]*Border\(|\\x1b|\\033|\[[0-9;]*m"' --include=*.go . | grep -v '^./internal/tui/theme/' | grep -v '_test.go'`
+  - String check: `grep -rnE '"[^"]*"' --include=*.go internal/tui | grep -v '_test.go' | grep -v '^internal/tui/text/' | grep -v '^internal/tui/theme/'` — remaining hits reviewed by hand: key identifiers, separators, the `> ` marker, format verbs, imports. Raw `err.Error()` text on the startup error screen is shown as returned.
 - [ ] Shell works in Windows Terminal (dark and light profiles)
-- [ ] `docs/architecture.md` Test Coverage Map has a row for the shell and domain types
+- [x] `docs/architecture.md` Test Coverage Map has a row for the shell and domain types
 - [ ] `CLAUDE.md` Current State updated

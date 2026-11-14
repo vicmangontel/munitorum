@@ -2,8 +2,11 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,13 +21,15 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		// Phase 0 replaces this with an in-terminal error screen.
-		fmt.Fprintln(os.Stderr, "munitorum:", err)
+		// The terminal is released by now, so stderr is safe.
+		fmt.Fprintln(os.Stderr, text.StartupFailed, err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
+	started := time.Now()
+
 	defaultDB, err := defaultDBPath()
 	if err != nil {
 		return err
@@ -32,35 +37,58 @@ func run() error {
 	dbPath := flag.String("db", defaultDB, text.FlagDB)
 	flag.Parse()
 
-	started := time.Now()
-	log, closeLog, err := logging.Open(filepath.Join(filepath.Dir(*dbPath), "logs"))
+	log, closeLog, err := logging.Open(filepath.Join(filepath.Dir(*dbPath), "logs"), started)
 	if err != nil {
 		return err
 	}
 	defer closeLog.Close()
 
-	db, err := store.Open(*dbPath)
+	db, err := openDatabase(*dbPath, log, started)
 	if err != nil {
-		log.Error("startup", "action", "startup", "outcome", "error", "error", err.Error())
+		// Never the setup wizard: an existing file that fails to open is not a new coto.
+		if _, tuiErr := tea.NewProgram(tui.NewStartupError(*dbPath, err), tea.WithAltScreen()).Run(); tuiErr != nil {
+			return fmt.Errorf("%w (and the error screen failed: %v)", err, tuiErr)
+		}
 		return err
 	}
 	defer db.Close()
 
-	applied, err := store.Migrate(db, store.Migrations())
-	if err != nil {
-		log.Error("startup", "action", "startup", "outcome", "error", "error", err.Error())
-		return err
-	}
-	log.Info("startup",
-		"action", "startup",
-		"outcome", "ok",
-		"duration_ms", time.Since(started).Milliseconds(),
-		"db_file", filepath.Base(*dbPath),
-		"migrations_applied", len(applied),
-	)
-
 	_, err = tea.NewProgram(tui.New(), tea.WithAltScreen()).Run()
 	return err
+}
+
+// openDatabase opens the database at path, applies the migrations, and emits the
+// startup wide event: the one place that event is built, on success and failure.
+func openDatabase(path string, log *slog.Logger, started time.Time) (db *sql.DB, err error) {
+	var applied []string
+	defer func() {
+		outcome, level := "ok", slog.LevelInfo
+		if err != nil {
+			outcome, level = "error", slog.LevelError
+		}
+		fields := []any{
+			"action", "startup",
+			"outcome", outcome,
+			"duration_ms", time.Since(started).Milliseconds(),
+			"db_file", filepath.Base(path),
+			"migrations_applied", len(applied),
+		}
+		if err != nil {
+			fields = append(fields, "error", err.Error())
+		}
+		log.Log(context.Background(), level, "startup", fields...)
+	}()
+
+	db, err = store.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	applied, err = store.Migrate(db, store.Migrations())
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
 }
 
 // defaultDBPath is munitorum.db in the executable's folder.

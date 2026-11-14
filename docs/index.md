@@ -51,7 +51,7 @@
 
 | File | Phase | Module | Depends on | Status |
 |---|---|---|---|---|
-| `docs/plans/phase-0-setup.md` | 0 | Setup (project) | — | not-started |
+| `docs/plans/phase-0-setup.md` | 0 | Setup (project) | — | in-progress |
 
 ## Change plans
 
