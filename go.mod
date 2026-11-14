@@ -1,4 +1,4 @@
-module munitorum
+module github.com/vicmangontel/munitorum
 
 go 1.26.4
 

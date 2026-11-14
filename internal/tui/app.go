@@ -5,7 +5,7 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"munitorum/internal/tui/text"
+	"github.com/vicmangontel/munitorum/internal/tui/text"
 )
 
 // Model is the root model. Phase 0 replaces this placeholder with the shell.

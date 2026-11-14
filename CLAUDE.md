@@ -61,6 +61,7 @@ docs/
 
 ## Naming Conventions
 **Backend language:** Go
+**Module path:** `github.com/vicmangontel/munitorum`
 **Packages:** lower-case, one word, English — including view packages (`tui/houses`, not `tui/casas`)
 **DB:** tables plural `snake_case`, columns `snake_case`, money columns suffixed `_cents`
 **Identifiers:** English, per the Domain Glossary; Spanish only inside `internal/tui/text`

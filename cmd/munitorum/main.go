@@ -10,10 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"munitorum/internal/logging"
-	"munitorum/internal/store"
-	"munitorum/internal/tui"
-	"munitorum/internal/tui/text"
+	"github.com/vicmangontel/munitorum/internal/logging"
+	"github.com/vicmangontel/munitorum/internal/store"
+	"github.com/vicmangontel/munitorum/internal/tui"
+	"github.com/vicmangontel/munitorum/internal/tui/text"
 )
 
 func main() {

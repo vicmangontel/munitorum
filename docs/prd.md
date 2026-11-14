@@ -4,7 +4,7 @@
 
 Munitorum is a local, single-user terminal application (keyboard-driven, in the
 style of lazygit) for the treasurer of a Mexican residential community
-(*fraccionamiento* / *coto*). It replaces the "Coto Lagos 2025-2026" spreadsheet.
+(*fraccionamiento* / *coto*). It replaces the spreadsheet the treasurer keeps today.
 
 It records monthly household quotas (*cuotas*), one-time special assessments
 (*cooperaciones extraordinarias*), expenses, transfers between accounts, and cash

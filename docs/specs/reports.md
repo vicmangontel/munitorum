@@ -27,7 +27,7 @@ Migration: `internal/store/migrations/008_reports.sql` — `ALTER TABLE settings
 
 ## Workbook
 
-File name: `{coto-slug}-reporte-{YYYY-MM}.xlsx` (e.g. `coto-lagos-reporte-2026-11.xlsx`).
+File name: `{coto-slug}-reporte-{YYYY-MM}.xlsx` (e.g. `coto-ejemplo-reporte-2026-11.xlsx`).
 Every sheet starts with three header rows: coto name; `Reporte mensual {mes año}`
 (with `— parcial al {fecha}` for the current month); `Generado el {fecha hora}`.
 Then a blank row and the table. Header row bold with a filter; panes frozen below it.
@@ -75,7 +75,7 @@ and knows nothing about the database.
 
 ## Acceptance Criteria
 
-- [ ] Exporting November 2026 creates `coto-lagos-reporte-2026-11.xlsx` with sheets 1–4, plus 5 when an assessment is open.
+- [ ] Exporting November 2026 creates `coto-ejemplo-reporte-2026-11.xlsx` with sheets 1–4, plus 5 when an assessment is open.
 - [ ] `Libro de caja` Saldo final equals the app's total balance at the end of the month; transfers do not change Saldo.
 - [ ] `Saldos` per-account Saldo final equals `AccountBalances(AsOf)` for each account.
 - [ ] `Cuotas` shows 150 in covered months, 60 in a partial month, blank in owed months, and Adeudo/Adelanto equal to the houses view as of `AsOf`.

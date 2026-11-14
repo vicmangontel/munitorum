@@ -62,4 +62,4 @@
 
 | File | Purpose |
 |---|---|
-| `docs/Coto Lagos 2025-2026.xlsx` | The spreadsheet Munitorum replaces; history from May 2026 is entered by hand from it |
+| `docs/*.xlsx` (local only, not in git) | The spreadsheet Munitorum replaces; history from May 2026 is entered by hand from it |
