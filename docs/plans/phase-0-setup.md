@@ -2,7 +2,7 @@
 type: plan
 phase: 0
 module: setup
-status: in-progress
+status: done
 depends-on: none
 ---
 
@@ -28,7 +28,7 @@ work.
 
 ### Verify the scaffold
 - [x] `go build ./...` and `go vet ./...` pass with no output
-- [ ] `just run` opens the placeholder TUI; `q` exits cleanly; `munitorum.db` and `logs/` appear next to the binary
+- [ ] `just run` opens the placeholder TUI; `q` exits cleanly; `munitorum.db` and `logs/` appear next to the binary — deferred to Phase 3 Step 1 (decided 2026-11-13)
 - [x] `just test` passes (migrator and startup tests)
 
 ### Domain types
@@ -76,6 +76,9 @@ work.
 - [x] No colour literals outside `internal/tui/theme`; no user-visible string literals outside `internal/tui/text`
   - Colour check (2026-11-13, empty result): `grep -rnE '#[0-9a-fA-F]{3,8}\b|lipgloss\.(Adaptive)?Color|lipgloss\.[A-Za-z]*Border\(|\\x1b|\\033|\[[0-9;]*m"' --include=*.go . | grep -v '^./internal/tui/theme/' | grep -v '_test.go'`
   - String check: `grep -rnE '"[^"]*"' --include=*.go internal/tui | grep -v '_test.go' | grep -v '^internal/tui/text/' | grep -v '^internal/tui/theme/'` — remaining hits reviewed by hand: key identifiers, separators, the `> ` marker, format verbs, imports. Raw `err.Error()` text on the startup error screen is shown as returned.
-- [ ] Shell works in Windows Terminal (dark and light profiles)
+- [ ] Shell works in Windows Terminal (dark and light profiles) — deferred to Phase 3 Step 1 (decided 2026-11-13)
 - [x] `docs/architecture.md` Test Coverage Map has a row for the shell and domain types
-- [ ] `CLAUDE.md` Current State updated
+- [x] `CLAUDE.md` Current State updated
+
+Closed 2026-11-13. The two manual Windows Terminal checks above are deferred to
+Phase 3 or 4 by the treasurer and are tracked as a Done-when item of Phase 3 Step 1.

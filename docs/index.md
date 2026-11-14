@@ -51,7 +51,11 @@
 
 | File | Phase | Module | Depends on | Status |
 |---|---|---|---|---|
-| `docs/plans/phase-0-setup.md` | 0 | Setup (project) | — | in-progress |
+| `docs/plans/phase-0-setup.md` | 0 | Setup (project) | — | done |
+| `docs/plans/phase-1-setup.md` | 1 | Setup (wizard) | 0 | not-started |
+| `docs/plans/phase-2-directory.md` | 2 | Directory | 1 | not-started |
+| `docs/plans/phase-3-ledger.md` | 3 | Ledger | 1, 2 | not-started |
+| `docs/plans/phase-4-houses.md` | 4 | Houses | 3 | not-started |
 
 ## Change plans
 

@@ -5,8 +5,8 @@
 cooperaciones, expenses, transfers and cash counts; see balances (available vs
 adelantos vs funds) and per-casa debt; and export monthly Excel reports.
 **Target users:** One treasurer (tesorero), sole operator, one Windows computer.
-**Status:** Bootstrapped — barebones scaffold in place. See `docs/roadmap.md` for the
-implementation order.
+**Status:** Phase 0 complete — application shell, theme, text, money and month types,
+test tooling. See `docs/roadmap.md` for the implementation order.
 
 ## Architecture and Design
 All architecture decisions, design system choices, active conventions, and acknowledged
@@ -120,7 +120,8 @@ docs/
 - [x] Architecture decisions recorded: `docs/architecture.md`
 - [x] Module specs: `docs/specs/setup.md`, `directory.md`, `ledger.md`, `houses.md`, `assessments.md`, `reminders.md`, `dashboard.md`, `reports.md`
 - [x] Roadmap: `docs/roadmap.md`
-- [x] Implementation plans written: `docs/plans/phase-0-setup.md`
-- [ ] Plans still to write: 1 Setup (wizard), 2 Directory, 3 Ledger, 4 Houses, 5 Assessments, 6 Reminders, 7 Dashboard, 8 Reports
+- [x] Implementation plans written: `docs/plans/phase-0-setup.md`, `phase-1-setup.md`, `phase-2-directory.md`, `phase-3-ledger.md`, `phase-4-houses.md`
+- [ ] Plans still to write: 5 Assessments, 6 Reminders, 7 Dashboard, 8 Reports
 - [x] Barebones scaffold created (module, migrator, logging, placeholder TUI, justfile)
-- [ ] **Next:** `docs/plans/phase-0-setup.md` — application shell, theme, text, domain money/month types, test tooling
+- [x] Phase 0 — application shell, theme, text, domain money/month types, test tooling (manual Windows Terminal checks deferred to Phase 3 Step 1)
+- [ ] **Next:** `docs/plans/phase-1-setup.md` — setup wizard, Ajustes, form and confirmation components
