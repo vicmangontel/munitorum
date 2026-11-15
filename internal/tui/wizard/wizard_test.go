@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vicmangontel/munitorum/internal/app"
+	"github.com/vicmangontel/munitorum/internal/domain"
 )
 
 // fakeRepo is an in-memory SetupRepository.
@@ -39,6 +40,13 @@ func (r *fakeRepo) SaveSetup(_ context.Context, s app.NewSetup) error {
 		return r.saveErr
 	}
 	r.saved = &s
+	return nil
+}
+
+// The wizard never edits settings; these satisfy app.SetupRepository.
+func (r *fakeRepo) UpdateCommunityName(context.Context, string, time.Time) error  { return nil }
+func (r *fakeRepo) RenameAccount(context.Context, int64, string, time.Time) error { return nil }
+func (r *fakeRepo) UpdateOpeningBalance(context.Context, int64, domain.Money, time.Time) error {
 	return nil
 }
 

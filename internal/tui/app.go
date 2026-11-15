@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vicmangontel/munitorum/internal/app"
+	settingsview "github.com/vicmangontel/munitorum/internal/tui/settings"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
 	"github.com/vicmangontel/munitorum/internal/tui/view"
 )
@@ -34,6 +35,7 @@ type Model struct {
 	width, height int
 	overlay       *overlay      // nil when no overlay is open
 	settings      *app.Settings // nil until the coto exists
+	svc           *app.SetupService
 }
 
 // New returns the root model with one placeholder view per entry of the view
@@ -61,6 +63,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		return m.updateKey(msg)
+	case settingsview.SavedMsg:
+		// The summary panel follows every Ajustes save, even one that finishes
+		// after the overlay was closed; an open overlay shows it too.
+		m.settings = &msg.Settings
+		if m.overlay != nil && m.overlay.content != nil {
+			return m, m.overlay.content.Update(msg)
+		}
+		return m, nil
+	}
+	// Results of commands an overlay started belong to its content.
+	if m.overlay != nil && m.overlay.content != nil {
+		return m, m.overlay.content.Update(msg)
 	}
 	return m, nil
 }
@@ -86,6 +100,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "?":
 		m.overlay = m.helpOverlay()
+		return m, nil
+	case "f2":
+		if m.settings != nil {
+			m = m.openOverlay(text.SettingsTitle, settingsview.New(m.svc, *m.settings))
+		}
 		return m, nil
 	case "tab":
 		m.focus = (m.focus + 1) % panelCount
@@ -121,6 +140,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // and its accounts in the summary panel.
 func (m Model) WithSettings(s app.Settings) Model {
 	m.settings = &s
+	return m
+}
+
+// WithService returns the shell calling svc for Ajustes.
+func (m Model) WithService(svc *app.SetupService) Model {
+	m.svc = svc
 	return m
 }
 

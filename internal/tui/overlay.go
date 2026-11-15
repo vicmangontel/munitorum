@@ -33,6 +33,7 @@ func (m Model) helpOverlay() *overlay {
 		{Key: text.KeyViews, Desc: text.HelpGoToView},
 		{Key: text.KeyMove, Desc: text.HelpMoveList},
 		{Key: text.KeyEnter, Desc: text.HelpOpenView},
+		{Key: text.KeyF2, Desc: text.HelpSettings},
 		{Key: text.KeyHelp, Desc: text.HelpToggle},
 		{Key: text.KeyEsc, Desc: text.HelpClose},
 		{Key: text.KeyQuit, Desc: text.HelpQuit},

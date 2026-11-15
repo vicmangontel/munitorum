@@ -274,6 +274,11 @@ one place and lets views stay free of colour literals.
 - The setup wizard emits `action=complete_setup`: `outcome`, `duration_ms`,
   `house_count`, `fee_amount_cents`, `opening_balance_cash_cents`,
   `opening_balance_bank_cents`, and `invalid_field_count` on a validation failure.
+- Ajustes emits `action=update_community_name`, `action=rename_account` (`account_id`),
+  and `action=update_opening_balance` (`account_id`, `old_balance_cents`,
+  `new_balance_cents`), each with `outcome`, `duration_ms`, `invalid_field_count` on a
+  validation failure, and `error` on failure. No names. `ErrNotFound` is outcome
+  `error` at `Error`.
 
 ## Testing Conventions
 
@@ -321,6 +326,10 @@ efficacy 100% (two survivors at the one-character-name boundary were killed by a
 tests). `./internal/domain` — 69 killed, 0 lived, 9 not covered, efficacy 100%; the 9
 not-covered mutants are all in the `HouseOpening.Check` switch, which `go tool cover`
 reports at 100%, so they are treated as a Gremlins coverage-mapping artifact.
+**Phase 1 Step 2 (2026-11-14):** `./internal/app` — 42 killed, 0 lived, 5 not covered,
+efficacy 100%. Not covered: the `GetSettings` error branch (`setup.go`), one line in
+`errors.go`, and the `parseBalance` switch (`setup_validate.go`), whose negative and
+unreadable cases are tested; treated as the same coverage-mapping artifact, not confirmed.
 
 ## Known Deviations
 
@@ -334,15 +343,16 @@ coverage from `just test-coverage`.
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
 | Domain (`internal/domain`: money, month, house code, opening rules, date/month input) | tested — 98.9%; mutation 69 killed, 0 lived | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
-| Setup service (`internal/app`: `SetupService`, `ValidationError`, clock) | tested — 92.1%; mutation 37 killed, 0 lived | `ErrNotFound` reached only through `LoadSettings`; Ajustes operations arrive in Phase 1 Step 2 |
-| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error) | tested — 96.4% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Setup service (`internal/app`: `SetupService` incl. Ajustes operations, `ValidationError`, clock) | tested — 93.2%; mutation 42 killed, 0 lived | `GetSettings` error branch |
+| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes) | tested — 96.6% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
 | Setup wizard (`internal/tui/wizard`) | tested — 93.0% | Interactive end-to-end run in Windows Terminal (manual only) |
+| Ajustes (`internal/tui/settings`) | tested — 96.7% | Real rendering in Windows Terminal (manual only) |
 | Form (`internal/tui/form`) | tested — 83.9% | Rarely used cursor paths |
-| Confirmation (`internal/tui/confirm`) | partial — 58.8% | Unit-tested only; first hosted in an overlay by Ajustes in Phase 1 Step 2 |
-| Text (`internal/tui/text`) | partial — 28.6% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
+| Confirmation (`internal/tui/confirm`) | partial — 58.8% in-package | Hosted in the Ajustes overlay and tested through `internal/tui/settings`; in-package tests are unit-only |
+| Text (`internal/tui/text`) | partial — 26.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
 | Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
 | Startup (`cmd/munitorum`) | partial — 40.0% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
-| Store (`internal/store`) | partial — 40.7% in-package | Setup repository is covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
+| Store (`internal/store`) | partial — 36.4% in-package | Setup repository, including the Ajustes `UPDATE` methods, is covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
 | Dev fixtures (`cmd/devseed`) | partial — 66.7% | `main` wiring; recreate, migrate, and the 18-house `CompleteSetup` seed tested |
 
 ## In-flight Work

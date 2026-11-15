@@ -110,8 +110,8 @@ func parseSetup(in SetupInput, now time.Time) (parsedSetup, error) {
 	var p parsedSetup
 	var ve ValidationError
 
-	p.name = strings.TrimSpace(in.CommunityName)
-	if n := utf8.RuneCountInString(p.name); n < 1 || n > maxCommunityName {
+	var ok bool
+	if p.name, ok = trimmedName(in.CommunityName, maxCommunityName); !ok {
 		ve.add(FieldCommunityName, CodeCommunityNameLength)
 	}
 
@@ -136,14 +136,12 @@ func parseSetup(in SetupInput, now time.Time) (parsedSetup, error) {
 	}
 
 	for i, a := range in.Accounts {
-		p.accountNames[i] = strings.TrimSpace(a.Name)
-		if n := utf8.RuneCountInString(p.accountNames[i]); n < 1 || n > maxAccountName {
+		if p.accountNames[i], ok = trimmedName(a.Name, maxAccountName); !ok {
 			ve.add(FieldAccountName(i), CodeAccountNameLength)
 		}
-		if p.balances[i], err = domain.ParseMoney(a.OpeningBalance); err != nil {
-			ve.add(FieldOpeningBalance(i), CodeAmountInvalid)
-		} else if p.balances[i] < 0 {
-			ve.add(FieldOpeningBalance(i), CodeBalanceNegative)
+		var code string
+		if p.balances[i], code = parseBalance(a.OpeningBalance); code != "" {
+			ve.add(FieldOpeningBalance(i), code)
 		}
 	}
 	// Full Unicode case folding; the column's NOCASE collation only folds ASCII.
@@ -203,6 +201,27 @@ func parseHouse(ve *ValidationError, i int, h SetupHouse, p parsedSetup, canChec
 		}
 	}
 	return o
+}
+
+// trimmedName trims raw and reports whether it is 1 to limit characters long
+// (setup rules 1 and 5).
+func trimmedName(raw string, limit int) (string, bool) {
+	name := strings.TrimSpace(raw)
+	n := utf8.RuneCountInString(name)
+	return name, n >= 1 && n <= limit
+}
+
+// parseBalance reads an opening balance (setup rule 6); the code is empty when
+// the balance is valid.
+func parseBalance(raw string) (domain.Money, string) {
+	m, err := domain.ParseMoney(raw)
+	switch {
+	case err != nil:
+		return 0, CodeAmountInvalid
+	case m < 0:
+		return m, CodeBalanceNegative
+	}
+	return m, ""
 }
 
 // parseOptionalMoney reads an amount where empty means zero.

@@ -3,7 +3,7 @@ type: spec
 module: setup
 status: draft
 entities: Settings, Account, House, FeeRate
-operations: GetSetupState, ValidateSetup, CompleteSetup, GetSettings, UpdateCommunityName, RenameAccount, UpdateOpeningBalance
+operations: GetSetupState, ValidateSetup, CompleteSetup, GetSettings, UpdateCommunityName, RenameAccount, ValidateOpeningBalance, UpdateOpeningBalance
 depends-on: none
 ---
 
@@ -38,8 +38,9 @@ The migrator itself creates `schema_migrations` (Phase 0).
 | `CompleteSetup` | Treasurer (wizard) | `SetupInput`: `CommunityName`, `HouseCount`, `HousePrefix`, `FeeAmount`, `Accounts[2]{Name, OpeningBalance}`, `OpeningDate`, `Houses[]{CoveredThrough, Credit, Arrears}` | Rules 1–9. Rejected with `ErrConflict` when setup already completed. One transaction. | Created settings |
 | `GetSettings` | Any view | — | — | Settings + accounts |
 | `UpdateCommunityName` | Treasurer | `Name` | Rule 1 | Updated settings |
-| `RenameAccount` | Treasurer | `AccountID`, `Name` | Rule 5 | Updated account |
-| `UpdateOpeningBalance` | Treasurer | `AccountID`, `Amount` | Rule 6; confirmation in UI because all balances change | Updated account |
+| `RenameAccount` | Treasurer | `RenameAccountInput{AccountID, Name}` | Rule 5 | Updated account |
+| `ValidateOpeningBalance` | Treasurer (Ajustes, before the confirmation) | `OpeningBalanceInput{AccountID, Amount}` | Rule 6. Writes nothing. | Every invalid field, or nil |
+| `UpdateOpeningBalance` | Treasurer | `OpeningBalanceInput{AccountID, Amount}` | Rule 6; confirmation in UI because all balances change | Updated account |
 
 ## Operations
 
@@ -57,6 +58,14 @@ houses with a `CoveredThrough` month, total credit, total opening arrears.
 Validation errors are returned as codes per field key (`community_name`,
 `houses[3].credit`, …); the TUI maps each code to its Spanish message in
 `internal/tui/text`.
+
+Ajustes operations (`UpdateCommunityName`, `RenameAccount`, `ValidateOpeningBalance`,
+`UpdateOpeningBalance`) take typed strings like `SetupInput` (`Amount` is the typed
+money text). Their validation keys are `community_name`, `account_{i}_name`, and
+`account_{i}_balance`, where `i` is the account's position in `GetSettings` (0 cash,
+1 bank). Rule 5's uniqueness compares against the other account only, so an account
+may be renamed to its own name in another case. An unknown `AccountID`, or any of
+these operations before setup is completed, returns `ErrNotFound`.
 
 Date and month input: dates are typed `DD/MM/AAAA` and months `MM/AAAA`
 (`15/05/2026`, `05/2026`); they are stored as `YYYY-MM-DD` and `YYYY-MM`.
@@ -77,7 +86,11 @@ stays in the application), and the opening credit and arrears columns are
 | Wizard — 5 Apertura | Opening date; opening balance per account | as above |
 | Wizard — 6 Casas al abrir | Table, one row per house: `Cubierto hasta` (month or empty), `Crédito`, `Adeudo inicial` | ↑/↓ row · Tab field · Enter: next |
 | Wizard — 7 Resumen | Totals: houses, cuota, balances per account and total, houses with coverage, total credit, total opening arrears | Enter: confirm and write · ←: back |
-| Ajustes (overlay from main shell) | Edit coto name, account names, opening balances | e: edit field · Esc: close |
+| Ajustes (overlay from main shell, `F2`) | Edit coto name, account names, opening balances | ↑/↓: select · e: edit field · Esc: close (also during an edit or confirmation; writes nothing) |
+
+In Ajustes, an opening-balance edit validates first, then asks for confirmation
+(`No` selected by default) because every balance changes; declining writes nothing.
+The summary panel reloads after every successful save.
 
 The wizard runs full-screen (no main shell) and keeps all input in memory until
 step 7 is confirmed. Moving back keeps entered values.

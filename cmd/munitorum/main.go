@@ -121,5 +121,5 @@ func startModel(ctx context.Context, svc *app.SetupService, today time.Time) (te
 	if err != nil {
 		return nil, err
 	}
-	return tui.NewShell(settings), nil
+	return tui.NewShell(svc, settings), nil
 }

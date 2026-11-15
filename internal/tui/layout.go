@@ -142,6 +142,7 @@ func (m Model) hintBar() string {
 	hints = append(hints,
 		view.Hint{Key: text.KeyTab, Desc: text.HintPanel},
 		view.Hint{Key: text.KeyViews, Desc: text.HintView},
+		view.Hint{Key: text.KeyF2, Desc: text.HintSettings},
 		view.Hint{Key: text.KeyHelp, Desc: text.HintHelp},
 		view.Hint{Key: text.KeyQuit, Desc: text.HintQuit},
 	)

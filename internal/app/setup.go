@@ -75,6 +75,11 @@ type SetupRepository interface {
 	// SaveSetup writes settings, both accounts, every house, and the initial fee
 	// rate in one transaction. It returns ErrConflict when setup already completed.
 	SaveSetup(ctx context.Context, s NewSetup) error
+	// UpdateCommunityName, RenameAccount and UpdateOpeningBalance each change one
+	// row and return ErrNotFound when it does not exist. now stamps updated_at.
+	UpdateCommunityName(ctx context.Context, name string, now time.Time) error
+	RenameAccount(ctx context.Context, id int64, name string, now time.Time) error
+	UpdateOpeningBalance(ctx context.Context, id int64, balance domain.Money, now time.Time) error
 }
 
 // SetupService creates the coto and reads its settings.
@@ -87,6 +92,23 @@ type SetupService struct {
 // NewSetupService returns a SetupService.
 func NewSetupService(repo SetupRepository, clock Clock, log *slog.Logger) *SetupService {
 	return &SetupService{repo: repo, clock: clock, log: log}
+}
+
+// emit writes the wide event of one operation: its action, outcome, duration
+// and the fields learned on the way. It never logs names or other free text.
+func (s *SetupService) emit(ctx context.Context, action string, started time.Time, err error, fields []any) {
+	outcome, level := "ok", slog.LevelInfo
+	var ve ValidationError
+	switch {
+	case errors.As(err, &ve):
+		outcome, level = "validation", slog.LevelWarn
+		fields = append(fields, "invalid_field_count", len(ve.Fields))
+	case err != nil:
+		outcome, level = "error", slog.LevelError
+		fields = append(fields, "error", err.Error())
+	}
+	fields = append(fields, "action", action, "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
+	s.log.Log(ctx, level, action, fields...)
 }
 
 // GetSetupState reports whether setup has completed.
@@ -122,22 +144,8 @@ func (s *SetupService) ValidateSetup(in SetupInput) (SetupSummary, error) {
 func (s *SetupService) CompleteSetup(ctx context.Context, in SetupInput) (settings Settings, err error) {
 	started := time.Now()
 	now := s.clock.Now()
-	fields := []any{"action", "complete_setup"}
-
-	defer func() {
-		outcome, level := "ok", slog.LevelInfo
-		var ve ValidationError
-		switch {
-		case errors.As(err, &ve):
-			outcome, level = "validation", slog.LevelWarn
-			fields = append(fields, "invalid_field_count", len(ve.Fields))
-		case err != nil:
-			outcome, level = "error", slog.LevelError
-			fields = append(fields, "error", err.Error())
-		}
-		fields = append(fields, "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
-		s.log.Log(ctx, level, "complete_setup", fields...)
-	}()
+	var fields []any
+	defer func() { s.emit(ctx, "complete_setup", started, err, fields) }()
 
 	p, err := parseSetup(in, now)
 	if err != nil {

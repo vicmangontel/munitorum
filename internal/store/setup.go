@@ -74,6 +74,42 @@ func (r *SetupRepository) LoadSettings(ctx context.Context) (app.Settings, error
 	return s, nil
 }
 
+func (r *SetupRepository) UpdateCommunityName(ctx context.Context, name string, now time.Time) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE settings SET community_name = ?, updated_at = ? WHERE id = 1`,
+		name, now.Format(timestampLayout))
+	return requireRow(res, err, "update community name")
+}
+
+func (r *SetupRepository) RenameAccount(ctx context.Context, id int64, name string, now time.Time) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE accounts SET name = ?, updated_at = ? WHERE id = ?`,
+		name, now.Format(timestampLayout), id)
+	return requireRow(res, err, "rename account")
+}
+
+func (r *SetupRepository) UpdateOpeningBalance(ctx context.Context, id int64, balance domain.Money, now time.Time) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE accounts SET opening_balance_cents = ?, updated_at = ? WHERE id = ?`,
+		int64(balance), now.Format(timestampLayout), id)
+	return requireRow(res, err, "update opening balance")
+}
+
+// requireRow turns an UPDATE that touched no row into ErrNotFound.
+func requireRow(res sql.Result, err error, op string) error {
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%s: %w", op, app.ErrNotFound)
+	}
+	return nil
+}
+
 func (r *SetupRepository) SaveSetup(ctx context.Context, s app.NewSetup) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

@@ -36,7 +36,7 @@ no write), and the wizard shows the errors for the fields of the current step.
 | Step | Slice | Spec | Status |
 |---|---|---|---|
 | 1 | The wizard creates the coto — carries the spine | `docs/specs/setup.md` | done |
-| 2 | Ajustes | `docs/specs/setup.md` | not-started |
+| 2 | Ajustes | `docs/specs/setup.md` | in-progress |
 
 ## Step 1 — The wizard creates the coto
 
@@ -79,23 +79,25 @@ Spec sections: Use Cases (`UpdateCommunityName`, `RenameAccount`, `UpdateOpening
 UI Views (Ajustes), Business Rules 1, 5, 6.
 
 ### Domain and application tasks
-- [ ] `UpdateCommunityName` (rule 1)
-- [ ] `RenameAccount` (rule 5: trimmed, 1–30 characters, unique among accounts case-insensitively)
-- [ ] `UpdateOpeningBalance` (rule 6: money ≥ 0)
-- [ ] Wide events `update_community_name`, `rename_account` (`account_id`), `update_opening_balance` (`account_id`, old and new centavos); no names
+- [x] `UpdateCommunityName` (rule 1)
+- [x] `RenameAccount` (rule 5: trimmed, 1–30 characters, unique among accounts case-insensitively)
+- [x] `UpdateOpeningBalance` (rule 6: money ≥ 0)
+- [x] Wide events `update_community_name`, `rename_account` (`account_id`), `update_opening_balance` (`account_id`, old and new centavos); no names
 
 ### TUI tasks
-- [ ] Ajustes overlay from the shell on a global key (`F2`), listed in the help overlay and the key-hint bar: coto name, account names, opening balances; `e` edits the selected field with the form component
-- [ ] Opening balance edit asks for confirmation first (every balance changes); declining writes nothing
-- [ ] Summary panel reloads after any Ajustes save
+- [x] Ajustes overlay from the shell on a global key (`F2`), listed in the help overlay and the key-hint bar: coto name, account names, opening balances; `e` edits the selected field with the form component
+- [x] Opening balance edit asks for confirmation first (every balance changes); declining writes nothing
+- [x] Summary panel reloads after any Ajustes save
 
 ### Test tasks
-- [ ] `internal/app` tests: blank and 61-character names rejected; renaming an account to the other account's name in any case rejected; negative opening balance rejected
-- [ ] TUI tests: declining the opening-balance confirmation writes nothing; a saved rename shows in the summary panel
+- [x] `internal/app` tests: blank and 61-character names rejected; renaming an account to the other account's name in any case rejected; negative opening balance rejected
+- [x] TUI tests: declining the opening-balance confirmation writes nothing; a saved rename shows in the summary panel
 
 ### Done when
-- [ ] `go build ./...`, `go vet ./...`, `just test` pass
-- [ ] Renaming the coto or an account, or changing an opening balance, shows in the summary panel immediately
+- [x] `go build ./...`, `go vet ./...`, `just test` pass
+- [x] Renaming the coto or an account, or changing an opening balance, shows in the summary panel immediately
+
+**Review status (2026-11-14):** tasks implemented and verified (build, vet, 468 tests). Independent review gate open: two should-fix test defects remain — `TestUpdateOperations_StampUpdatedAtWithTheClock` (`internal/app/settings_test.go`) cannot fail because setup and update share one clock time; the "a late write failure" subtest in `internal/tui/settings/settings_test.go` cannot fail with the `onFailed` guard removed. Fix both, re-verify, then close the step.
 
 The acceptance criterion "changing an opening balance changes every balance derived
 from it" is verified in Phase 3 Step 1, once movements exist.

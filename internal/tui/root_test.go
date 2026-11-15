@@ -39,7 +39,7 @@ func TestShell_SummaryPanelShowsTheCotoNameAndTheOpeningBalances(t *testing.T) {
 
 func TestRoot_ShowsTheShellOfAnExistingCoto(t *testing.T) {
 	// Arrange
-	var model tea.Model = NewShell(settings())
+	var model tea.Model = NewShell(nil, settings())
 
 	// Act
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
