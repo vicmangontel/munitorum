@@ -124,4 +124,5 @@ docs/
 - [ ] Plans still to write: 5 Assessments, 6 Reminders, 7 Dashboard, 8 Reports
 - [x] Barebones scaffold created (module, migrator, logging, placeholder TUI, justfile)
 - [x] Phase 0 — application shell, theme, text, domain money/month types, test tooling (manual Windows Terminal checks deferred to Phase 3 Step 1)
-- [ ] **Next:** `docs/plans/phase-1-setup.md` — setup wizard, Ajustes, form and confirmation components
+- [ ] Phase 1 — setup wizard, Ajustes, form and confirmation components: implemented and reviewed; manual Windows Terminal verification pending (`docs/plans/phase-1-setup.md` → Manual Test Scenarios)
+- [ ] **Next:** `docs/plans/phase-2-directory.md` — Directory

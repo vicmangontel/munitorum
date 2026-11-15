@@ -10,7 +10,7 @@ hours are reported at approval. One capacity day = 2.5 hours.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | phase-0 | Setup (project) | `docs/plans/phase-0-setup.md` | 2026-11-13 18:52 | 2026-11-13 20:32 | | | | | | | | |
 | phase-1.1 | Setup (wizard) | `docs/plans/phase-1-setup.md` | 2026-11-13 23:53 | 2026-11-14 11:18 | 2026-11-14 11:18 | unmeasured | unmeasured | 0.00 | unmeasured | unmeasured | unmeasured | 2 |
-| phase-1.2 | Setup (wizard) | `docs/plans/phase-1-setup.md` | 2026-11-14 11:28 | | | | | | | | | |
+| phase-1.2 | Setup (wizard) | `docs/plans/phase-1-setup.md` | 2026-11-14 11:28 | 2026-11-14 20:37 | | | | | | | | |
 
 ## Other time
 

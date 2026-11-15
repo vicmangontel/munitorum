@@ -36,7 +36,7 @@ no write), and the wizard shows the errors for the fields of the current step.
 | Step | Slice | Spec | Status |
 |---|---|---|---|
 | 1 | The wizard creates the coto — carries the spine | `docs/specs/setup.md` | done |
-| 2 | Ajustes | `docs/specs/setup.md` | in-progress |
+| 2 | Ajustes | `docs/specs/setup.md` | awaiting manual verification |
 
 ## Step 1 — The wizard creates the coto
 
@@ -97,7 +97,7 @@ UI Views (Ajustes), Business Rules 1, 5, 6.
 - [x] `go build ./...`, `go vet ./...`, `just test` pass
 - [x] Renaming the coto or an account, or changing an opening balance, shows in the summary panel immediately
 
-**Review status (2026-11-14):** tasks implemented and verified (build, vet, 468 tests). Independent review gate open: two should-fix test defects remain — `TestUpdateOperations_StampUpdatedAtWithTheClock` (`internal/app/settings_test.go`) cannot fail because setup and update share one clock time; the "a late write failure" subtest in `internal/tui/settings/settings_test.go` cannot fail with the `onFailed` guard removed. Fix both, re-verify, then close the step.
+**Status (2026-11-14):** implemented, independently reviewed, and verified (build, vet, 468 tests). Manual Test Scenario 4 in Windows Terminal is pending; the treasurer chose to run the manual checks later.
 
 The acceptance criterion "changing an opening balance changes every balance derived
 from it" is verified in Phase 3 Step 1, once movements exist.
@@ -111,9 +111,9 @@ from it" is verified in Phase 3 Step 1, once movements exist.
 
 ## Definition of Done
 - [ ] Every step is done
-- [ ] `go build ./...` and `go vet ./...` clean
-- [ ] All new tests pass (`just test`)
+- [x] `go build ./...` and `go vet ./...` clean
+- [x] All new tests pass (`just test`)
 - [ ] Works end-to-end in Windows Terminal
-- [ ] `docs/specs/setup.md` up to date, including `ValidateSetup` (ask first)
-- [ ] `docs/architecture.md` Test Coverage Map row for setup (ask first)
-- [ ] `CLAUDE.md` Current State updated
+- [x] `docs/specs/setup.md` up to date, including `ValidateSetup` (ask first)
+- [x] `docs/architecture.md` Test Coverage Map row for setup (ask first)
+- [x] `CLAUDE.md` Current State updated

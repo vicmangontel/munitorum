@@ -5,10 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vicmangontel/munitorum/internal/app"
+	"github.com/vicmangontel/munitorum/internal/store"
 )
 
 // setupDone returns a service over a completed coto (cash "Efectivo" with
@@ -344,7 +348,9 @@ func TestUpdateOperations_StampUpdatedAtWithTheClock(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Arrange
-			svc, db, _, settings := setupDone(t)
+			_, db, _, settings := setupDone(t) // setup ran at `today`
+			later := today.Add(48 * time.Hour)
+			svc := app.NewSetupService(store.NewSetupRepository(db), fixedClock{later}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 			id := settings.Accounts[0].ID
 			rowID := int64(1)
 			if c.byAccount {
@@ -362,8 +368,8 @@ func TestUpdateOperations_StampUpdatedAtWithTheClock(t *testing.T) {
 			if err := db.QueryRow(`SELECT updated_at FROM `+c.table+` WHERE id = ?`, rowID).Scan(&updatedAt); err != nil {
 				t.Fatal(err)
 			}
-			if updatedAt != "2026-11-13 09:30:00" {
-				t.Fatalf("updated_at = %q, want the clock time", updatedAt)
+			if updatedAt != "2026-11-15 09:30:00" {
+				t.Fatalf("updated_at = %q, want the update-time clock value", updatedAt)
 			}
 		})
 	}

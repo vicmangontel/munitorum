@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -304,7 +303,7 @@ func TestSettings_ResultsThatArriveAfterTheSaveAreIgnored(t *testing.T) {
 	}{
 		{"a late validation without errors", validatedMsg{}},
 		{"a late validation error", validatedMsg{err: app.ValidationError{Fields: map[string]string{app.FieldOpeningBalance(0): app.CodeBalanceNegative}}}},
-		{"a late write failure", failedMsg{err: errors.New("disk full")}},
+		{"a late write validation error", failedMsg{err: app.ValidationError{Fields: map[string]string{app.FieldOpeningBalance(0): app.CodeBalanceNegative}}}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
