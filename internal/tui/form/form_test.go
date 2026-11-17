@@ -122,3 +122,191 @@ func TestForm_AtStartIsTrueOnlyOnTheFirstFieldBeforeItsFirstCharacter(t *testing
 		t.Fatal("AtStart on the second field")
 	}
 }
+
+func selectorForm() *Form {
+	return New(
+		Field{Key: "kind", Label: "Tipo", Choices: []string{"Persona", "Empresa", "Servicio"}},
+		Field{Key: "name", Label: "Nombre"},
+		Field{Key: "company", Label: "Empresa", Locked: true, Value: "(ninguna)"},
+		Field{Key: "notes", Label: "Notas"},
+	)
+}
+
+func TestForm_ASelectorStartsOnItsValueOrItsFirstChoiceAndCyclesWithLeftRightAndSpace(t *testing.T) {
+	cases := []struct {
+		name string
+		keys []tea.KeyMsg
+		want string
+	}{
+		{"starts on the first choice", nil, "Persona"},
+		{"right moves to the next", []tea.KeyMsg{{Type: tea.KeyRight}}, "Empresa"},
+		{"space moves to the next", []tea.KeyMsg{runes(" ")}, "Empresa"},
+		{"right wraps to the first", []tea.KeyMsg{{Type: tea.KeyRight}, {Type: tea.KeyRight}, {Type: tea.KeyRight}}, "Persona"},
+		{"left wraps to the last", []tea.KeyMsg{{Type: tea.KeyLeft}}, "Servicio"},
+		{"letters change nothing", []tea.KeyMsg{runes("x")}, "Persona"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Arrange
+			f := selectorForm()
+
+			// Act
+			for _, k := range c.keys {
+				f.Update(k)
+			}
+
+			// Assert
+			if got := f.Value("kind"); got != c.want {
+				t.Fatalf("kind = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestForm_ASelectorWithAnInitialValueStartsOnIt(t *testing.T) {
+	// Act
+	f := New(Field{Key: "kind", Label: "Tipo", Value: "Empresa", Choices: []string{"Persona", "Empresa"}})
+
+	// Assert
+	if got := f.Value("kind"); got != "Empresa" {
+		t.Fatalf("kind = %q, want Empresa", got)
+	}
+}
+
+func TestForm_ALockedFieldShowsItsValueAndIgnoresTyping(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.Update(keyTab())
+	f.Update(keyTab())
+
+	// Act
+	f.Update(runes("xyz"))
+	f.SetValue("company", "Portones Acme")
+
+	// Assert
+	if f.Focused() != "company" || f.Value("company") != "Portones Acme" {
+		t.Fatalf("focused = %q, value = %q; want company set by the host only", f.Focused(), f.Value("company"))
+	}
+	if !strings.Contains(f.View(), "Portones Acme") {
+		t.Fatalf("view does not show the locked value:\n%s", f.View())
+	}
+}
+
+func keyTab() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyTab} }
+
+func TestForm_AHiddenFieldIsNotDrawn(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+
+	// Act
+	out := f.View()
+
+	// Assert
+	if strings.Contains(out, "Empresa  ") || strings.Contains(out, "(ninguna)") {
+		t.Fatalf("view draws the hidden field:\n%s", out)
+	}
+}
+
+func TestForm_TabSkipsAHiddenField(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+	f.Update(keyTab()) // kind -> name
+
+	// Act
+	f.Update(keyTab()) // name -> notes, skipping company
+
+	// Assert
+	if f.Focused() != "notes" {
+		t.Fatalf("focus = %q, want notes", f.Focused())
+	}
+}
+
+func TestForm_ShiftTabSkipsAHiddenFieldBackwards(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+	f.Update(keyTab())
+	f.Update(keyTab()) // on notes
+
+	// Act
+	f.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+
+	// Assert
+	if f.Focused() != "name" {
+		t.Fatalf("focus = %q, want name", f.Focused())
+	}
+}
+
+func TestForm_ShiftTabFromTheFirstFieldWrapsToTheLastVisibleField(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+
+	// Act
+	f.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+
+	// Assert
+	if f.Focused() != "notes" {
+		t.Fatalf("focus = %q, want notes", f.Focused())
+	}
+}
+
+func TestForm_AHiddenFieldHasNoError(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+
+	// Act
+	bad := f.SetErrors(app.ValidationError{Fields: map[string]string{"company": app.CodeFeeNotPositive}})
+
+	// Assert
+	if bad {
+		t.Fatal("SetErrors reported an error for a hidden field")
+	}
+}
+
+func TestForm_ShowingAHiddenFieldAgainDrawsItAndRestoresItInTheTabOrder(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.SetHidden("company", true)
+
+	// Act
+	f.SetHidden("company", false)
+	f.Update(keyTab())
+	f.Update(keyTab())
+
+	// Assert
+	if f.Focused() != "company" || !strings.Contains(f.View(), "(ninguna)") {
+		t.Fatalf("focus = %q, view:\n%s; want the company field back", f.Focused(), f.View())
+	}
+}
+
+func TestForm_HidingTheFocusedFieldMovesFocusToTheNextVisibleOne(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+	f.Update(keyTab())
+	f.Update(keyTab()) // company
+
+	// Act
+	f.SetHidden("company", true)
+
+	// Assert
+	if f.Focused() != "notes" {
+		t.Fatalf("focus = %q, want notes", f.Focused())
+	}
+}
+
+func TestForm_ASelectorIsDrawnBetweenArrowsWithItsCurrentChoice(t *testing.T) {
+	// Arrange
+	f := selectorForm()
+
+	// Act
+	f.Update(tea.KeyMsg{Type: tea.KeyRight})
+
+	// Assert
+	if !strings.Contains(f.View(), "‹ Empresa ›") {
+		t.Fatalf("view does not draw the selector:\n%s", f.View())
+	}
+}

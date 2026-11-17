@@ -85,3 +85,31 @@ func TestReset_SeedsAnEighteenHouseCotoWithMixedOpeningStates(t *testing.T) {
 		t.Fatalf("houses=%d covered=%d arrears=%d credit=%d; want 18 2 3 1", houses, covered, withArrears, withCredit)
 	}
 }
+
+func TestReset_SeedsTheDirectoryWithACompanyItsTechnicianServicesAndADeletedVendor(t *testing.T) {
+	// Arrange
+	path := filepath.Join(t.TempDir(), "munitorum-dev.db")
+
+	// Act
+	_, err := reset(path)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var live, deleted, services, technicians int
+	if err := db.QueryRow(`SELECT COUNT(*) FILTER (WHERE deleted_at IS NULL), COUNT(deleted_at),
+		COUNT(*) FILTER (WHERE kind = 'service' AND name IN ('Basura', 'CFE')),
+		COUNT(*) FILTER (WHERE company_id = (SELECT id FROM vendors WHERE name = 'Portones Acme'))
+		FROM vendors`).Scan(&live, &deleted, &services, &technicians); err != nil {
+		t.Fatal(err)
+	}
+	if live != 6 || deleted != 1 || services != 2 || technicians != 1 {
+		t.Fatalf("live=%d deleted=%d services=%d technicians=%d; want 6 1 2 1", live, deleted, services, technicians)
+	}
+}

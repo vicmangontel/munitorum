@@ -45,3 +45,38 @@ type Content interface {
 	// KeyHints lists the keys the content accepts, for the hint bar.
 	KeyHints() []Hint
 }
+
+// Detailer is implemented by a view that fills the detail panel for its
+// selected row. An empty string shows the "no selection" text.
+type Detailer interface {
+	Detail() string
+}
+
+// KeyCapturer is implemented by a view that is reading typed text, such as a
+// search box. While CapturesKeys is true the root sends every key to the view,
+// so that q, ?, tab and the digits are text and not shell commands.
+type KeyCapturer interface {
+	CapturesKeys() bool
+}
+
+// EscapeHandler is implemented by overlay content with steps of its own, such
+// as a picker opened inside a form. While HandlesEscape is true the root sends
+// esc to the content instead of closing the overlay.
+type EscapeHandler interface {
+	HandlesEscape() bool
+}
+
+// OpenOverlayMsg asks the root to show Content in an overlay. A view returns it
+// from a command.
+type OpenOverlayMsg struct {
+	Title   string
+	Content Content
+}
+
+// CloseOverlayMsg asks the root to close the overlay.
+type CloseOverlayMsg struct{}
+
+// SizeMsg tells every view how much room its panel's content has, in cells,
+// after the border and the title line. The root sends it whenever the terminal
+// is resized.
+type SizeMsg struct{ Width, Height int }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -51,7 +52,8 @@ var Codes = append([]string{
 	CodeAmountInvalid, CodeFeeNotPositive, CodeAccountNameLength,
 	CodeAccountNameDuplicate, CodeBalanceNegative, CodeDateInvalid,
 	CodeDateFuture, CodeMonthInvalid, CodeHousesMismatch,
-}, domain.OpeningIssues...)
+	CodeVendorNameDuplicate, CodeVendorCompanyInvalid, CodeVendorKindInUse,
+}, slices.Concat(domain.OpeningIssues, domain.VendorIssues)...)
 
 // Field length limits (setup rules 1 and 5), in characters.
 const (

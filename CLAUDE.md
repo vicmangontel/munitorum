@@ -125,4 +125,5 @@ docs/
 - [x] Barebones scaffold created (module, migrator, logging, placeholder TUI, justfile)
 - [x] Phase 0 — application shell, theme, text, domain money/month types, test tooling (manual Windows Terminal checks deferred to Phase 3 Step 1)
 - [ ] Phase 1 — setup wizard, Ajustes, form and confirmation components: implemented and reviewed; manual Windows Terminal verification pending (`docs/plans/phase-1-setup.md` → Manual Test Scenarios)
-- [ ] **Next:** `docs/plans/phase-2-directory.md` — Directory
+- [x] Phase 2 — Directory: vendors, `FoldKey`, Directorio view, picker, view-contract extensions; reviewed and manually verified
+- [ ] **Next:** `docs/plans/phase-3-ledger.md` — Ledger

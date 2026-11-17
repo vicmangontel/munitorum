@@ -56,6 +56,9 @@ func reset(path string) ([]string, error) {
 	if err := seedCoto(context.Background(), db, time.Now()); err != nil {
 		return nil, err
 	}
+	if err := seedDirectory(context.Background(), db); err != nil {
+		return nil, err
+	}
 	return applied, nil
 }
 
@@ -88,6 +91,39 @@ func seedCoto(ctx context.Context, db *sql.DB, now time.Time) error {
 	})
 	if err != nil {
 		return fmt.Errorf("seed coto: %w", err)
+	}
+	return nil
+}
+
+// seedDirectory adds a gardener and a container-cleaning person, the company
+// Portones Acme with one technician, the services Basura and CFE, and one
+// deleted vendor.
+func seedDirectory(ctx context.Context, db *sql.DB) error {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log)
+
+	acme, err := svc.CreateVendor(ctx, app.VendorInput{Kind: domain.VendorCompany, Name: "Portones Acme", Phone: "55 5555 0100"})
+	if err != nil {
+		return fmt.Errorf("seed directory: %w", err)
+	}
+	vendors := []app.VendorInput{
+		{Kind: domain.VendorPerson, Name: "Luis Hernández", Phone: "55 5555 0101", Notes: "Jardinero"},
+		{Kind: domain.VendorPerson, Name: "Rosa Martínez", Phone: "55 5555 0102", Notes: "Limpieza de contenedores"},
+		{Kind: domain.VendorPerson, Name: "Juan Gómez", Phone: "55 5555 0103", Email: "juan@portonesacme.example", CompanyID: &acme.ID, Notes: "Técnico de portones"},
+		{Kind: domain.VendorService, Name: "Basura"},
+		{Kind: domain.VendorService, Name: "CFE"},
+	}
+	for _, in := range vendors {
+		if _, err := svc.CreateVendor(ctx, in); err != nil {
+			return fmt.Errorf("seed directory: %w", err)
+		}
+	}
+	gone, err := svc.CreateVendor(ctx, app.VendorInput{Kind: domain.VendorPerson, Name: "Antonio Ruiz", Phone: "55 5555 0104", Notes: "Ya no trabaja con el coto"})
+	if err != nil {
+		return fmt.Errorf("seed directory: %w", err)
+	}
+	if err := svc.DeleteVendor(ctx, gone.ID); err != nil {
+		return fmt.Errorf("seed directory: %w", err)
 	}
 	return nil
 }

@@ -6,8 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vicmangontel/munitorum/internal/app"
+	directoryview "github.com/vicmangontel/munitorum/internal/tui/directory"
 	settingsview "github.com/vicmangontel/munitorum/internal/tui/settings"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
+	"github.com/vicmangontel/munitorum/internal/tui/theme"
 	"github.com/vicmangontel/munitorum/internal/tui/view"
 )
 
@@ -60,9 +62,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		return m, nil
+		return m.broadcast(m.sizeMsg())
 	case tea.KeyMsg:
 		return m.updateKey(msg)
+	case view.OpenOverlayMsg:
+		return m.openOverlay(msg.Title, msg.Content), nil
+	case view.CloseOverlayMsg:
+		m.overlay = nil
+		return m, nil
 	case settingsview.SavedMsg:
 		// The summary panel follows every Ajustes save, even one that finishes
 		// after the overlay was closed; an open overlay shows it too.
@@ -72,11 +79,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// Results of commands an overlay started belong to its content.
-	if m.overlay != nil && m.overlay.content != nil {
-		return m, m.overlay.content.Update(msg)
+	// Results of commands belong to the views, which ignore what is not theirs,
+	// and to the open overlay's content.
+	return m.broadcast(msg)
+}
+
+// broadcast delivers a non-key message to every view and to the overlay content.
+func (m Model) broadcast(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	for i := range m.views {
+		var cmd tea.Cmd
+		m.views[i], cmd = m.views[i].Update(msg)
+		cmds = append(cmds, cmd)
 	}
-	return m, nil
+	if m.overlay != nil && m.overlay.content != nil {
+		cmds = append(cmds, m.overlay.content.Update(msg))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// sizeMsg is the room the main panel's content has: the panel without its
+// border and title line, as layout.go draws it.
+func (m Model) sizeMsg() view.SizeMsg {
+	frameW, frameH := theme.PanelFocused.GetFrameSize()
+	return view.SizeMsg{
+		Width:  max(m.width-leftWidth-frameW, 1),
+		Height: max((m.height-1)*3/5-frameH-1, 1),
+	}
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -87,12 +116,22 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.overlay != nil {
 		switch {
+		case key == "esc" && handlesEscape(m.overlay.content):
+			return m, m.overlay.content.Update(msg)
 		case key == "esc", key == "?" && m.overlay.content == nil:
 			m.overlay = nil
 		case m.overlay.content != nil:
 			return m, m.overlay.content.Update(msg)
 		}
 		return m, nil
+	}
+
+	if m.focus == panelMain {
+		if c, ok := m.views[m.selected].(view.KeyCapturer); ok && c.CapturesKeys() {
+			v, cmd := m.views[m.selected].Update(msg)
+			m.views[m.selected] = v
+			return m, cmd
+		}
 	}
 
 	switch key {
@@ -152,5 +191,21 @@ func (m Model) WithService(svc *app.SetupService) Model {
 // openOverlay shows content in a centred overlay; esc closes it.
 func (m Model) openOverlay(title string, content view.Content) Model {
 	m.overlay = &overlay{title: title, content: content}
+	return m
+}
+
+// handlesEscape reports whether overlay content wants esc itself.
+func handlesEscape(c view.Content) bool {
+	h, ok := c.(view.EscapeHandler)
+	return ok && h.HandlesEscape()
+}
+
+// WithDirectory returns the shell showing the Directorio view over dir.
+func (m Model) WithDirectory(dir *app.DirectoryService) Model {
+	v := directoryview.New(dir)
+	m.views[text.ViewDirectory] = v
+	if m.width > 0 {
+		m.views[text.ViewDirectory], _ = v.Update(m.sizeMsg())
+	}
 	return m
 }

@@ -35,9 +35,13 @@ func (m Model) View() string {
 		panelBox(text.PanelViews, m.viewList(), leftWidth, bodyHeight-summaryHeight, m.focus == panelViews),
 	)
 	current := m.views[m.selected]
+	detail := theme.Label.Render(text.NoSelection)
+	if d, ok := current.(view.Detailer); ok && d.Detail() != "" {
+		detail = d.Detail()
+	}
 	right := lipgloss.JoinVertical(lipgloss.Left,
 		panelBox(current.Title(), current.View(), rightWidth, mainHeight, m.focus == panelMain),
-		panelBox(text.PanelDetail, theme.Label.Render(text.NoSelection), rightWidth, bodyHeight-mainHeight, m.focus == panelDetail),
+		panelBox(text.PanelDetail, detail, rightWidth, bodyHeight-mainHeight, m.focus == panelDetail),
 	)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	screen := lipgloss.JoinVertical(lipgloss.Left, body, m.hintBar())

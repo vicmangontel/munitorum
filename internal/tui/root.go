@@ -14,7 +14,8 @@ import (
 type Root struct {
 	wizard        *wizard.Model // nil once the shell is showing
 	shell         Model
-	svc           *app.SetupService // handed to the shell, which edits settings through it
+	svc           *app.SetupService     // handed to the shell, which edits settings through it
+	dir           *app.DirectoryService // handed to the shell, which shows Directorio through it
 	width, height int
 }
 
@@ -46,6 +47,9 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if done, ok := msg.(wizard.DoneMsg); ok && r.wizard != nil {
 		r.wizard = nil
 		r.shell = r.shell.WithService(r.svc).WithSettings(done.Settings)
+		if r.dir != nil {
+			r.shell = r.shell.WithDirectory(r.dir)
+		}
 		next, _ := r.shell.Update(tea.WindowSizeMsg{Width: r.width, Height: r.height})
 		r.shell = next.(Model)
 		return r, r.shell.Init()
@@ -64,4 +68,12 @@ func (r Root) View() string {
 		return r.wizard.View()
 	}
 	return r.shell.View()
+}
+
+// WithDirectory returns the root whose shell shows Directorio through dir,
+// also when the shell appears after the wizard.
+func (r Root) WithDirectory(dir *app.DirectoryService) Root {
+	r.dir = dir
+	r.shell = r.shell.WithDirectory(dir)
+	return r
 }

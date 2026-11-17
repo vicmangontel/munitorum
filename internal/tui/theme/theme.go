@@ -25,6 +25,7 @@ var (
 	KeyHint     = lipgloss.NewStyle().Foreground(Muted)
 	SelectedRow = lipgloss.NewStyle().Foreground(Accent).Bold(true)
 	Error       = lipgloss.NewStyle().Foreground(Negative)
+	Deleted     = lipgloss.NewStyle().Foreground(Muted).Strikethrough(true)
 
 	// Amounts: income is Positive, expense is Negative. Totals are bold.
 	AmountIncome  = lipgloss.NewStyle().Foreground(Positive)

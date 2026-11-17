@@ -123,7 +123,9 @@ migrations, and inserts a sample coto: 18 houses with mixed states (up to date,
 2 months behind, a year prepaid, never paid), 6 months of movements across both
 accounts, one partly collected assessment, one project with an advance, four
 reminders including a bimonthly one, two todos. Update the loader whenever a
-table is added.
+table is added. Phase 2 adds the directory: company `Portones Acme` with technician
+Juan Gómez, the gardener and the container-cleaning person, services `Basura` and
+`CFE`, and one deleted person (6 live, 1 deleted).
 
 ## Domain Glossary
 
@@ -233,6 +235,10 @@ one place and lets views stay free of colour literals.
   `schema_migrations`. Applied files are never edited; a change is a new file.
 - Every multi-row write (a payment plus its notes, a wizard run, a transfer) runs in one
   transaction.
+- Personal data: `vendors.name`, `phone`, `email`, and `notes` (Phase 2) hold third-party
+  personal data. Stored only in the local `.db` file; kept indefinitely; soft delete
+  hides but never erases it; there is no erasure path (see Acknowledged Risks). Never
+  logged.
 - The database path is passed to the driver as a plain filename, never a `file:` URI,
   so `#` and `%` in folder names are literal. A path containing `?` is rejected at open
   with an error (the driver splits its DSN at `?`).
@@ -255,6 +261,24 @@ one place and lets views stay free of colour literals.
   `KeyHints`, `Title`) so view packages never import the root. Until a view's phase
   builds it, the root shows a shared `view.Placeholder`; that phase replaces it with
   its own package.
+- Optional view contract (`internal/tui/view`, Phase 2):
+  - `Detailer{ Detail() string }` — the root draws it in the detail panel; an empty
+    string shows the "Sin selección" text.
+  - `OpenOverlayMsg{Title, Content}` / `CloseOverlayMsg{}` — a view opens an overlay
+    in the root; overlay content closes itself (e.g. a form after saving).
+  - `KeyCapturer{ CapturesKeys() bool }` — while true (e.g. typing a `/` search), the
+    root does not treat `q`, `?`, digits or `tab` as global keys.
+  - `EscapeHandler{ HandlesEscape() bool }` on overlay content — while true, `esc` goes
+    to the content (e.g. a picker inside a form) instead of closing the overlay.
+  - `SizeMsg{Width, Height}` — the main panel's content area (inside border and title),
+    sent to every view on each resize.
+- The root broadcasts non-key messages to every view and to the overlay content.
+  Overlay content may host nested content (form → picker → inline vendor form).
+- `internal/tui/form` supports selector fields (`Choices`, left/right/space), locked
+  fields, and hidden fields (skipped by focus, not drawn, no errors shown).
+- `internal/tui/picker` is the reusable chooser: the caller loads items; typing filters
+  with `domain.FoldKey`; `enter` selects, `esc` returns no selection, `+` (when the
+  caller offers create) opens an inline create and returns the new item selected.
 - Views call `internal/app` through commands (`tea.Cmd`), never directly in `View()`.
 - No colour or border literals outside `internal/tui/theme`; no user-visible string
   literals outside `internal/tui/text`.
@@ -279,6 +303,12 @@ one place and lets views stay free of colour literals.
   `new_balance_cents`), each with `outcome`, `duration_ms`, `invalid_field_count` on a
   validation failure, and `error` on failure. No names. `ErrNotFound` is outcome
   `error` at `Error`.
+- The directory emits `action=create_vendor`, `update_vendor`, `delete_vendor`,
+  `restore_vendor`: `outcome`, `duration_ms`, `vendor_id` and `kind` when known (absent
+  on a rejected create), `invalid_field_count` on a validation failure, `error` on
+  failure. A `ValidationError` or `app.VendorConflict` is outcome `validation` at `Warn`
+  with no error text; `ErrNotFound` is outcome `error` at `Error`. No names, phones,
+  emails, or notes. All services emit through the shared `app.logEvent`.
 
 ## Testing Conventions
 
@@ -330,6 +360,15 @@ reports at 100%, so they are treated as a Gremlins coverage-mapping artifact.
 efficacy 100%. Not covered: the `GetSettings` error branch (`setup.go`), one line in
 `errors.go`, and the `parseBalance` switch (`setup_validate.go`), whose negative and
 unreadable cases are tested; treated as the same coverage-mapping artifact, not confirmed.
+**Phase 2 (2026-11-14):** run as `go tool gremlins unleash <pkg> --timeout-coefficient 20`
+(the command behind `just test-mutation`). `./internal/domain` — 87 killed, 0 lived,
+13 not covered, efficacy 100%; 9 are the known `house.go` switch artifact and 4 the
+`Vendor.Check` switch in `vendor.go`, whose cases are all tested. `./internal/app` —
+77 killed, 0 lived, 6 not covered (after the review fixes), efficacy 100%; four are lines already listed for
+Phase 1 Step 2 (the `GetSettings` error branch, `errors.go`, and the `parseBalance`
+switch in `setup_validate.go`, at new line numbers), one is the `case err != nil`
+switch line in `events.go`, and one the `case c.Kind != domain.VendorCompany` line in
+`RestoreVendor`, exercised by its regression test; all treated as the same artifact.
 
 ## Known Deviations
 
@@ -342,18 +381,21 @@ coverage from `just test-coverage`.
 
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
-| Domain (`internal/domain`: money, month, house code, opening rules, date/month input) | tested — 98.9%; mutation 69 killed, 0 lived | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
-| Setup service (`internal/app`: `SetupService` incl. Ajustes operations, `ValidationError`, clock) | tested — 93.2%; mutation 42 killed, 0 lived | `GetSettings` error branch |
-| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes) | tested — 96.6% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Domain (`internal/domain`: money, month, house code, opening rules, date/month input, `FoldKey`, vendor rules) | tested — 99.2%; mutation 87 killed, 0 lived | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
+| Setup service (`internal/app`: `SetupService` incl. Ajustes operations, `ValidationError`, clock) | tested — 93.3% (package); mutation 77 killed, 0 lived (package, with Directory) | `GetSettings` error branch |
+| Directory service (`internal/app`: `DirectoryService`, `VendorConflict`, rules 1–8) | tested — every acceptance criterion and the restore rule | `ListVendors` loads every vendor and filters in Go (`debt:` in source); the `(eliminado)` suffix on old movements waits for the ledger |
+| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes, view contract) | tested — 93.4% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Directorio (`internal/tui/directory`: list, search, kind filter, detail, vendor form, delete/restore) | tested — 94.7% | Real rendering, strikethrough on deleted rows, and 80×24 fit in Windows Terminal (manual only) |
+| Picker (`internal/tui/picker`) | tested — 96.9% | `+` cannot be typed as filter text while the caller offers create |
 | Setup wizard (`internal/tui/wizard`) | tested — 93.0% | Interactive end-to-end run in Windows Terminal (manual only) |
 | Ajustes (`internal/tui/settings`) | tested — 96.7% | Real rendering in Windows Terminal (manual only) |
-| Form (`internal/tui/form`) | tested — 83.9% | Rarely used cursor paths |
+| Form (`internal/tui/form`) | tested — 88.0% | Rarely used cursor paths |
 | Confirmation (`internal/tui/confirm`) | partial — 58.8% in-package | Hosted in the Ajustes overlay and tested through `internal/tui/settings`; in-package tests are unit-only |
-| Text (`internal/tui/text`) | partial — 26.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
+| Text (`internal/tui/text`) | partial — 66.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
 | Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
-| Startup (`cmd/munitorum`) | partial — 40.0% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
-| Store (`internal/store`) | partial — 36.4% in-package | Setup repository, including the Ajustes `UPDATE` methods, is covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
-| Dev fixtures (`cmd/devseed`) | partial — 66.7% | `main` wiring; recreate, migrate, and the 18-house `CompleteSetup` seed tested |
+| Startup (`cmd/munitorum`) | partial — 39.3% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
+| Store (`internal/store`) | partial — 47.0% in-package | Setup and vendor repositories, including the Ajustes `UPDATE` methods, are covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
+| Dev fixtures (`cmd/devseed`) | partial — 68.0% | `main` wiring; recreate, migrate, the 18-house `CompleteSetup` seed, and the directory seed tested |
 
 ## In-flight Work
 
@@ -365,4 +407,5 @@ None.
 |---|---|---|
 | Reminders are only seen while the app is open; nothing notifies when it is closed | Interactive single-user tool; the treasurer opens it to record payments | Dashboard lists every due and overdue reminder until done or skipped |
 | Spanish-only UI makes a later open-source release harder | v1 is for one coto | All user-visible strings in `internal/tui/text`; code and data model in English |
+| Vendor personal data (names, phones, emails, notes) is never erased; soft delete only hides it | Local, single-user tool; the data stays in one `.db` file the treasurer controls and is never logged or sent anywhere | Recorded under Data layer → Personal data. Upgrade: add a purge operation for deleted vendors when a vendor asks to be erased or the data leaves the machine (export, sync, backup service) |
 | Manual backup only | Treasurer accepted copying the file | Journal mode `DELETE` keeps the `.db` a complete copy; in-app backup listed for v2 |

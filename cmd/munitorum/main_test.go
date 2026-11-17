@@ -170,7 +170,7 @@ func TestOpenDatabase_FailsWhenTheFolderDoesNotExist(t *testing.T) {
 	}
 }
 
-func newTestService(t *testing.T) *app.SetupService {
+func newTestService(t *testing.T) (*app.SetupService, *app.DirectoryService) {
 	t.Helper()
 	dir := t.TempDir()
 	log, closeLog, err := logging.Open(filepath.Join(dir, "logs"), started)
@@ -183,15 +183,16 @@ func newTestService(t *testing.T) *app.SetupService {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log)
+	return app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log),
+		app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log)
 }
 
 func TestStartModel_OpensTheWizardOnAFreshDatabase(t *testing.T) {
 	// Arrange
-	svc := newTestService(t)
+	svc, dir := newTestService(t)
 
 	// Act
-	model, err := startModel(context.Background(), svc, started)
+	model, err := startModel(context.Background(), svc, dir, started)
 
 	// Assert
 	root, ok := model.(tui.Root)
@@ -202,7 +203,7 @@ func TestStartModel_OpensTheWizardOnAFreshDatabase(t *testing.T) {
 
 func TestStartModel_OpensTheShellWithTheCotoOnACompletedDatabase(t *testing.T) {
 	// Arrange
-	svc := newTestService(t)
+	svc, dir := newTestService(t)
 	_, err := svc.CompleteSetup(context.Background(), app.SetupInput{
 		CommunityName: "Coto Los Pinos",
 		HouseCount:    "2",
@@ -220,7 +221,7 @@ func TestStartModel_OpensTheShellWithTheCotoOnACompletedDatabase(t *testing.T) {
 	}
 
 	// Act
-	model, err := startModel(context.Background(), svc, started)
+	model, err := startModel(context.Background(), svc, dir, started)
 	sized, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	// Assert

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -94,21 +93,9 @@ func NewSetupService(repo SetupRepository, clock Clock, log *slog.Logger) *Setup
 	return &SetupService{repo: repo, clock: clock, log: log}
 }
 
-// emit writes the wide event of one operation: its action, outcome, duration
-// and the fields learned on the way. It never logs names or other free text.
+// emit writes the wide event of one operation; see logEvent.
 func (s *SetupService) emit(ctx context.Context, action string, started time.Time, err error, fields []any) {
-	outcome, level := "ok", slog.LevelInfo
-	var ve ValidationError
-	switch {
-	case errors.As(err, &ve):
-		outcome, level = "validation", slog.LevelWarn
-		fields = append(fields, "invalid_field_count", len(ve.Fields))
-	case err != nil:
-		outcome, level = "error", slog.LevelError
-		fields = append(fields, "error", err.Error())
-	}
-	fields = append(fields, "action", action, "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
-	s.log.Log(ctx, level, action, fields...)
+	logEvent(ctx, s.log, action, started, err, fields)
 }
 
 // GetSetupState reports whether setup has completed.

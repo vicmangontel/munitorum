@@ -55,7 +55,8 @@ func run() error {
 	defer db.Close()
 
 	svc := app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log)
-	model, err := startModel(context.Background(), svc, time.Now())
+	dir := app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log)
+	model, err := startModel(context.Background(), svc, dir, time.Now())
 	if err != nil {
 		return err
 	}
@@ -109,17 +110,17 @@ func defaultDBPath() (string, error) {
 // startModel picks the first screen: the setup wizard while no coto exists, the
 // shell once setup has completed. It runs only after the migrations succeeded
 // (setup rule 10), so a database that cannot be read never reaches the wizard.
-func startModel(ctx context.Context, svc *app.SetupService, today time.Time) (tea.Model, error) {
+func startModel(ctx context.Context, svc *app.SetupService, dir *app.DirectoryService, today time.Time) (tea.Model, error) {
 	state, err := svc.GetSetupState(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !state.Completed {
-		return tui.NewWizard(svc, today), nil
+		return tui.NewWizard(svc, today).WithDirectory(dir), nil
 	}
 	settings, err := svc.GetSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return tui.NewShell(svc, settings), nil
+	return tui.NewShell(svc, settings).WithDirectory(dir), nil
 }
