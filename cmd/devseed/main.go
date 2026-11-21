@@ -59,14 +59,17 @@ func reset(path string) ([]string, error) {
 	if err := seedDirectory(context.Background(), db); err != nil {
 		return nil, err
 	}
+	if err := seedLedger(context.Background(), db, time.Now()); err != nil {
+		return nil, err
+	}
 	return applied, nil
 }
 
-// seedCoto completes setup for 18 houses opened on the first of the current month,
-// with a mix of opening states: up to date, two months behind, a year prepaid,
+// seedCoto completes setup for 18 houses opened on the first of the month five
+// months ago, so that six months of movements fit after the opening date, with a mix of opening states: up to date, two months behind, a year prepaid,
 // never paid, and opening arrears or credit.
 func seedCoto(ctx context.Context, db *sql.DB, now time.Time) error {
-	opening := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	opening := time.Date(now.Year(), now.Month()-5, 1, 0, 0, 0, 0, time.Local)
 	yearAhead := domain.Of(opening).Add(11)
 
 	houses := make([]app.SetupHouse, 18)                                                          // the rest are up to date: nothing covered, nothing owed
@@ -124,6 +127,87 @@ func seedDirectory(ctx context.Context, db *sql.DB) error {
 	}
 	if err := svc.DeleteVendor(ctx, gone.ID); err != nil {
 		return fmt.Errorf("seed directory: %w", err)
+	}
+	return nil
+}
+
+// seedLedger records six months of income and expenses across both accounts,
+// ending with the current month: other income, services paid to CFE and Basura,
+// supplies, preventive maintenance by Portones Acme's technician, and one repair.
+// Every movement goes through the ledger service, so the rules hold for the
+// fixtures too.
+func seedLedger(ctx context.Context, db *sql.DB, now time.Time) error {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	repo := store.NewLedgerRepository(db)
+	ledger := app.NewLedgerService(repo, app.SystemClock{}, log)
+	dir := app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log)
+
+	balances, err := ledger.AccountBalances(ctx, now)
+	if err != nil {
+		return fmt.Errorf("seed ledger: %w", err)
+	}
+	cash, bank := balances.Accounts[0].Account.ID, balances.Accounts[1].Account.ID
+
+	categories, err := app.NewCategoryService(repo).ListCategories(ctx, app.ListCategoriesInput{})
+	if err != nil {
+		return fmt.Errorf("seed ledger: %w", err)
+	}
+	category := map[string]int64{}
+	for _, c := range categories {
+		category[c.Name] = c.ID
+	}
+	vendors, err := dir.ListVendors(ctx, app.ListVendorsInput{})
+	if err != nil {
+		return fmt.Errorf("seed ledger: %w", err)
+	}
+	vendor := map[string]*int64{}
+	for _, v := range vendors {
+		vendor[v.Name] = &v.ID
+	}
+
+	for ago := 5; ago >= 0; ago-- {
+		month := domain.Of(now).Add(-ago)
+		// The current month has no days after today.
+		date := func(day int) string {
+			if ago == 0 {
+				day = min(day, now.Day())
+			}
+			return domain.FormatInputDate(time.Date(month.Year, month.Month, day, 0, 0, 0, 0, time.Local))
+		}
+		income := func(day int, account int64, amount, description string) error {
+			_, err := ledger.RecordIncome(ctx, app.IncomeInput{
+				Date: date(day), AccountID: account, CategoryID: category["Otros ingresos"], Amount: amount, Description: description,
+			})
+			return err
+		}
+		expense := func(day int, account int64, categoryName, vendorName, amount, description string) error {
+			_, err := ledger.RecordExpense(ctx, app.ExpenseInput{
+				Date: date(day), AccountID: account, CategoryID: category[categoryName], VendorID: vendor[vendorName],
+				Amount: amount, Description: description,
+			})
+			return err
+		}
+
+		steps := []error{
+			income(3, bank, "1,500.00", "Renta del salón"),
+			expense(5, bank, "Servicios", "CFE", "1,150.00", "Recibo de luz"),
+			expense(8, cash, "Servicios", "Basura", "450.00", "Recolección de basura"),
+			expense(12, cash, "Insumos", "", fmt.Sprintf("%d.00", 320+15*ago), "Material de limpieza"),
+		}
+		if ago%2 == 0 {
+			steps = append(steps, expense(18, bank, "Mtto preventivo", "Juan Gómez", "900.00", "Mantenimiento de portones"))
+		}
+		if ago == 3 {
+			steps = append(steps, expense(22, cash, "Reparaciones", "Luis Hernández", "600.00", "Reparación de la bomba"))
+		}
+		if ago%2 == 1 {
+			steps = append(steps, income(25, cash, "200.00", "Uso del salón"))
+		}
+		for _, err := range steps {
+			if err != nil {
+				return fmt.Errorf("seed ledger: %w", err)
+			}
+		}
 	}
 	return nil
 }

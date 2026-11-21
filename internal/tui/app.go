@@ -3,10 +3,13 @@
 package tui
 
 import (
+	"context"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/vicmangontel/munitorum/internal/app"
 	directoryview "github.com/vicmangontel/munitorum/internal/tui/directory"
+	ledgerview "github.com/vicmangontel/munitorum/internal/tui/ledger"
 	settingsview "github.com/vicmangontel/munitorum/internal/tui/settings"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
 	"github.com/vicmangontel/munitorum/internal/tui/theme"
@@ -38,6 +41,15 @@ type Model struct {
 	overlay       *overlay      // nil when no overlay is open
 	settings      *app.Settings // nil until the coto exists
 	svc           *app.SetupService
+	ledger        *app.LedgerService // nil until WithLedger; the summary then shows derived balances
+	clock         app.Clock
+	balances      *app.Balances // nil until the first read of the balances
+}
+
+// balancesMsg is the result of reading the account balances for the summary panel.
+type balancesMsg struct {
+	balances app.Balances
+	err      error
 }
 
 // New returns the root model with one placeholder view per entry of the view
@@ -55,7 +67,20 @@ func (m Model) Init() tea.Cmd {
 	for i, v := range m.views {
 		cmds[i] = v.Init()
 	}
-	return tea.Batch(cmds...)
+	return tea.Batch(append(cmds, m.balancesCmd())...)
+}
+
+// balancesCmd reads the balances of every account as of today for the summary
+// panel; nil when the shell has no ledger.
+func (m Model) balancesCmd() tea.Cmd {
+	if m.ledger == nil {
+		return nil
+	}
+	svc, clock := m.ledger, m.clock
+	return func() tea.Msg {
+		b, err := svc.AccountBalances(context.Background(), clock.Now())
+		return balancesMsg{balances: b, err: err}
+	}
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -70,14 +95,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case view.CloseOverlayMsg:
 		m.overlay = nil
 		return m, nil
-	case settingsview.SavedMsg:
-		// The summary panel follows every Ajustes save, even one that finishes
-		// after the overlay was closed; an open overlay shows it too.
-		m.settings = &msg.Settings
-		if m.overlay != nil && m.overlay.content != nil {
-			return m, m.overlay.content.Update(msg)
+	case view.ChangedMsg:
+		// Every view reloads, and the summary panel reads the balances again.
+		next, cmd := m.broadcast(msg)
+		return next, tea.Batch(cmd, m.balancesCmd())
+	case balancesMsg:
+		// debt: a failed read keeps the previous balances on screen without a
+		// notice; the ledger view reports read failures itself. Add a stale
+		// marker here if an out-of-date summary ever misleads the treasurer.
+		if msg.err == nil {
+			m.balances = &msg.balances
 		}
 		return m, nil
+	case settingsview.SavedMsg:
+		// The summary panel follows every Ajustes save, even one that finishes
+		// after the overlay was closed; an open overlay shows it too. An opening
+		// balance moves every derived balance, so the views reload as well.
+		m.settings = &msg.Settings
+		var overlayCmd tea.Cmd
+		if m.overlay != nil && m.overlay.content != nil {
+			overlayCmd = m.overlay.content.Update(msg)
+		}
+		next, cmd := m.Update(view.ChangedMsg{})
+		return next, tea.Batch(overlayCmd, cmd)
 	}
 	// Results of commands belong to the views, which ignore what is not theirs,
 	// and to the open overlay's content.
@@ -198,6 +238,19 @@ func (m Model) openOverlay(title string, content view.Content) Model {
 func handlesEscape(c view.Content) bool {
 	h, ok := c.(view.EscapeHandler)
 	return ok && h.HandlesEscape()
+}
+
+// WithLedger returns the shell showing the Movimientos view over the ledger, and
+// the summary panel showing the balances the ledger derives. dir offers the
+// vendors of the expense form.
+func (m Model) WithLedger(ledger *app.LedgerService, cats *app.CategoryService, dir *app.DirectoryService, clock app.Clock) Model {
+	v := ledgerview.New(ledger, cats, dir, clock)
+	m.ledger, m.clock = ledger, clock
+	m.views[text.ViewLedger] = v
+	if m.width > 0 {
+		m.views[text.ViewLedger], _ = v.Update(m.sizeMsg())
+	}
+	return m
 }
 
 // WithDirectory returns the shell showing the Directorio view over dir.

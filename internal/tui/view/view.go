@@ -76,6 +76,11 @@ type OpenOverlayMsg struct {
 // CloseOverlayMsg asks the root to close the overlay.
 type CloseOverlayMsg struct{}
 
+// ChangedMsg tells the root and every view that something was saved that other
+// views derive from, such as a movement or an opening balance. The root reloads
+// the summary panel and each view reloads what it shows.
+type ChangedMsg struct{}
+
 // SizeMsg tells every view how much room its panel's content has, in cells,
 // after the border and the title line. The root sends it whenever the terminal
 // is resized.

@@ -60,7 +60,7 @@ func (d *deleteConfirm) Update(msg tea.Msg) tea.Cmd {
 		}
 		d.busy = false
 		if msg.err == nil {
-			return tea.Batch(send(ChangedMsg{}), send(view.CloseOverlayMsg{}))
+			return tea.Batch(send(ChangedMsg{}), send(view.ChangedMsg{}), send(view.CloseOverlayMsg{}))
 		}
 		d.failure = describe(msg.err)
 	case tea.KeyMsg:

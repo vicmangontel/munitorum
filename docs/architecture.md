@@ -125,7 +125,9 @@ accounts, one partly collected assessment, one project with an advance, four
 reminders including a bimonthly one, two todos. Update the loader whenever a
 table is added. Phase 2 adds the directory: company `Portones Acme` with technician
 Juan Gómez, the gardener and the container-cleaning person, services `Basura` and
-`CFE`, and one deleted person (6 live, 1 deleted).
+`CFE`, and one deleted person (6 live, 1 deleted). Phase 3 sets the seed opening date
+to the first of the month five months before the current one (rule 1 rejects earlier
+movements) and adds six months of income and expenses with vendors on both accounts.
 
 ## Domain Glossary
 
@@ -279,6 +281,11 @@ one place and lets views stay free of colour literals.
 - `internal/tui/picker` is the reusable chooser: the caller loads items; typing filters
   with `domain.FoldKey`; `enter` selects, `esc` returns no selection, `+` (when the
   caller offers create) opens an inline create and returns the new item selected.
+- `view.ChangedMsg` (Phase 3): sent after any save (movements, Ajustes, vendor create,
+  update, delete and restore — the directory also keeps its own `SavedMsg`/`ChangedMsg`);
+  the root
+  reloads the summary balances (`AccountBalances(today)`) and broadcasts it so every
+  view reloads.
 - Views call `internal/app` through commands (`tea.Cmd`), never directly in `View()`.
 - No colour or border literals outside `internal/tui/theme`; no user-visible string
   literals outside `internal/tui/text`.
@@ -309,6 +316,11 @@ one place and lets views stay free of colour literals.
   failure. A `ValidationError` or `app.VendorConflict` is outcome `validation` at `Warn`
   with no error text; `ErrNotFound` is outcome `error` at `Error`. No names, phones,
   emails, or notes. All services emit through the shared `app.logEvent`.
+- The ledger emits `action=record_income` and `record_expense`: `outcome`,
+  `duration_ms`, `account_id`, `category_id`, `vendor_id` when given, `amount_cents`
+  when it parsed, `movement_id` on success, `invalid_field_count` on a validation
+  failure, `error` on failure. A declined negative-balance warning is outcome
+  `validation` at `Warn` with `warning=negative_balance`. No descriptions or notes.
 
 ## Testing Conventions
 
@@ -369,6 +381,14 @@ Phase 1 Step 2 (the `GetSettings` error branch, `errors.go`, and the `parseBalan
 switch in `setup_validate.go`, at new line numbers), one is the `case err != nil`
 switch line in `events.go`, and one the `case c.Kind != domain.VendorCompany` line in
 `RestoreVendor`, exercised by its regression test; all treated as the same artifact.
+**Phase 3 Step 1 (2026-11-20):** `./internal/domain` — 102 killed, 0 lived, 13 not
+covered (the known `house.go` and `vendor.go` artifacts; none in `ledger.go`), efficacy
+100%; a `dayKey` survivor (year dropped) was killed by a year-boundary case.
+`./internal/app` — first run 5 lived (category sort ×3, one-character description,
+transfer-to-account filter), killed by added tests; final 130 killed, 0 lived, 14 not
+covered, efficacy 100%. Not covered: the earlier `directory.go`, `errors.go`,
+`events.go` and `setup_validate.go` lines, plus switch-case lines in `ledger.go`
+whose cases are tested; treated as the same artifact.
 
 ## Known Deviations
 
@@ -381,10 +401,12 @@ coverage from `just test-coverage`.
 
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
-| Domain (`internal/domain`: money, month, house code, opening rules, date/month input, `FoldKey`, vendor rules) | tested — 99.2%; mutation 87 killed, 0 lived | One `ParseMoney` branch. Allocation, balances, and funds are not built yet |
+| Domain (`internal/domain`: money, month, house code, opening rules, date/month input, `FoldKey`, vendor rules, ledger effects, balances, running balance, month totals) | tested — 99.4%; mutation 102 killed, 0 lived | One `ParseMoney` branch. Allocation and funds are not built yet |
+| Ledger service (`internal/app`: `LedgerService`, `CategoryService`, `NegativeBalanceWarning`; Step 1 operations) | tested — package 93.1%; mutation 130 killed, 0 lived | `ListMovements` loads every live movement and filters in Go (`debt:` in source); Steps 2–4 operations not built |
+| Movimientos (`internal/tui/ledger`: list, month keys, footer totals, income/expense forms, negative-balance confirmation) | tested — 81.4% | Vendor-clear key; load-failure notice; real rendering and 80×24 fit in Windows Terminal (manual only) |
 | Setup service (`internal/app`: `SetupService` incl. Ajustes operations, `ValidationError`, clock) | tested — 93.3% (package); mutation 77 killed, 0 lived (package, with Directory) | `GetSettings` error branch |
-| Directory service (`internal/app`: `DirectoryService`, `VendorConflict`, rules 1–8) | tested — every acceptance criterion and the restore rule | `ListVendors` loads every vendor and filters in Go (`debt:` in source); the `(eliminado)` suffix on old movements waits for the ledger |
-| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes, view contract) | tested — 93.4% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
+| Directory service (`internal/app`: `DirectoryService`, `VendorConflict`, rules 1–8) | tested — every acceptance criterion and the restore rule | `ListVendors` loads every vendor and filters in Go (`debt:` in source) |
+| TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes, view contract, summary balances and `ChangedMsg` reload) | tested — 97.5% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
 | Directorio (`internal/tui/directory`: list, search, kind filter, detail, vendor form, delete/restore) | tested — 94.7% | Real rendering, strikethrough on deleted rows, and 80×24 fit in Windows Terminal (manual only) |
 | Picker (`internal/tui/picker`) | tested — 96.9% | `+` cannot be typed as filter text while the caller offers create |
 | Setup wizard (`internal/tui/wizard`) | tested — 93.0% | Interactive end-to-end run in Windows Terminal (manual only) |
@@ -394,8 +416,8 @@ coverage from `just test-coverage`.
 | Text (`internal/tui/text`) | partial — 66.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
 | Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
 | Startup (`cmd/munitorum`) | partial — 39.3% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
-| Store (`internal/store`) | partial — 47.0% in-package | Setup and vendor repositories, including the Ajustes `UPDATE` methods, are covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
-| Dev fixtures (`cmd/devseed`) | partial — 68.0% | `main` wiring; recreate, migrate, the 18-house `CompleteSetup` seed, and the directory seed tested |
+| Store (`internal/store`) | partial — 54.4% in-package | Setup, vendor and ledger repositories (ledger constraints also tested directly), including the Ajustes `UPDATE` methods, are covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
+| Dev fixtures (`cmd/devseed`) | partial — 77.9% | `main` wiring; recreate, migrate, the 18-house `CompleteSetup` seed, the directory seed, and the six-month ledger seed tested |
 
 ## In-flight Work
 

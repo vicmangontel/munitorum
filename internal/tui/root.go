@@ -77,3 +77,11 @@ func (r Root) WithDirectory(dir *app.DirectoryService) Root {
 	r.shell = r.shell.WithDirectory(dir)
 	return r
 }
+
+// WithLedger returns the root whose shell shows Movimientos and the derived
+// balances through ledger. The shell keeps it when the wizard hands over to it.
+// dir offers the vendors of the expense form; clock gives today.
+func (r Root) WithLedger(ledger *app.LedgerService, cats *app.CategoryService, dir *app.DirectoryService, clock app.Clock) Root {
+	r.shell = r.shell.WithLedger(ledger, cats, dir, clock)
+	return r
+}

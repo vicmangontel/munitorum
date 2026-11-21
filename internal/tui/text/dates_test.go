@@ -56,3 +56,25 @@ func TestMonthNames_AreLowerCaseSpanishAndAlignWithAbbreviations(t *testing.T) {
 		})
 	}
 }
+
+func TestDayMonth_PadsTheDayToTwoDigitsSoColumnsLineUp(t *testing.T) {
+	cases := []struct {
+		name string
+		date time.Time
+		want string
+	}{
+		{"single digit day", time.Date(2026, time.November, 5, 0, 0, 0, 0, time.Local), "05 nov"},
+		{"two digit day", time.Date(2026, time.March, 25, 0, 0, 0, 0, time.Local), "25 mar"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Act
+			got := DayMonth(c.date)
+
+			// Assert
+			if got != c.want {
+				t.Fatalf("DayMonth = %q, want %q", got, c.want)
+			}
+		})
+	}
+}

@@ -123,6 +123,15 @@ var validationMessages = map[string]string{
 	"vendor_company_invalid":     "Elija una empresa activa del directorio.",
 	"vendor_name_duplicate":      "Ya existe un elemento activo del mismo tipo con ese nombre.",
 	"vendor_kind_in_use":         "La empresa tiene personas activas; cambie o elimine primero a esas personas.",
+	"date_before_opening":        "La fecha no puede ser anterior a la fecha de apertura.",
+	"amount_not_positive":        "El monto debe ser mayor que cero.",
+	"account_invalid":            "Elija una cuenta.",
+	"description_length":         "La descripción es obligatoria y admite hasta 120 caracteres.",
+	"notes_length":               "Las notas admiten hasta 500 caracteres.",
+	"receipt_link_length":        "El enlace del recibo admite hasta 500 caracteres.",
+	"category_invalid":           "Elija una categoría activa.",
+	"category_reserved":          "Esa categoría la registra otro módulo; elija otra.",
+	"vendor_invalid":             "Elija un proveedor activo del directorio.",
 }
 
 // ValidationMessage is the Spanish message for an app validation code. An

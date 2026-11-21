@@ -32,9 +32,15 @@ func (r *SetupRepository) SetupCompleted(ctx context.Context) (bool, error) {
 }
 
 func (r *SetupRepository) LoadSettings(ctx context.Context) (app.Settings, error) {
+	return loadSettings(ctx, r.db)
+}
+
+// loadSettings reads the settings and accounts through q, a database or a
+// transaction, so the ledger can read them inside its own transaction.
+func loadSettings(ctx context.Context, q queryer) (app.Settings, error) {
 	var s app.Settings
 	var openingDate, completedAt string
-	err := r.db.QueryRowContext(ctx,
+	err := q.QueryRowContext(ctx,
 		`SELECT community_name, house_prefix, house_count, opening_date, setup_completed_at
 		 FROM settings WHERE id = 1`,
 	).Scan(&s.CommunityName, &s.HousePrefix, &s.HouseCount, &openingDate, &completedAt)
@@ -51,7 +57,7 @@ func (r *SetupRepository) LoadSettings(ctx context.Context) (app.Settings, error
 		return app.Settings{}, fmt.Errorf("read settings: setup_completed_at: %w", err)
 	}
 
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := q.QueryContext(ctx,
 		`SELECT id, name, kind, opening_balance_cents, sort_order
 		 FROM accounts ORDER BY sort_order`)
 	if err != nil {

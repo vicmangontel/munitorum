@@ -90,7 +90,21 @@ gains fields owned by those modules. The ledger does not import those modules;
 they register form sections and filter fields with the TUI root, and register
 validation hooks with `app.LedgerService` that run inside the same transaction
 on record, update, delete, and restore (e.g. assessments rule 3: a fund may never
-go negative). A hook failure rejects the whole operation.
+go negative). A hook failure rejects the whole operation. No hooks are built yet;
+they arrive with their first users.
+
+**Contract details.**
+- Inputs `Date` (`DD/MM/AAAA`) and `Amount` are the text as typed, so one
+  validation reports unreadable and out-of-range values together.
+- `RecordExpense` returns the warning as an error value (`app.NegativeBalanceWarning`,
+  read with `errors.As`), like `app.VendorConflict`.
+- `RecordExpense.VendorID`, when given, must name a live vendor (`vendor_invalid`).
+- `ListMovements` rows carry the vendor display name and a `VendorDeleted` flag; the
+  TUI adds the ` (eliminado)` suffix, since `internal/app` holds no Spanish text.
+- Validation codes: `date_invalid`, `date_future`, `date_before_opening`,
+  `amount_invalid`, `amount_not_positive`, `account_invalid`, `description_length`,
+  `notes_length`, `receipt_link_length`, `category_invalid`, `category_reserved`,
+  `vendor_invalid`.
 
 ## UI Views
 
@@ -120,9 +134,11 @@ total across accounts.
 5. Category names: 1–40 characters, unique per direction (case- and accent-insensitive).
 6. System categories can be renamed but not deactivated. Inactive categories are not
    offered in forms; movements that use them keep and display them.
-7. When an expense, transfer, edit, or restore leaves any account's current balance
-   (all live movements, all dates) below zero, the operation returns a warning and
-   writes nothing unless `ConfirmNegative` is set.
+7. When an expense, transfer, edit, or restore leaves the current balance (all live
+   movements, all dates) of an account the operation touches below zero, the operation
+   returns a warning and writes nothing unless `ConfirmNegative` is set. Other accounts
+   are not checked. Exactly zero does not warn; an account already below zero warns
+   again. Income never warns.
 8. Transfer accounts must differ.
 9. Ordering: `date` ascending, then `id` ascending. Running balance starts from the
    balance at the end of the day before the first row in the filter.

@@ -2,11 +2,11 @@
 type: plan
 phase: 3
 module: ledger
-status: not-started
+status: in-progress
 spec: docs/specs/ledger.md
 depends-on: phase-1, phase-2
 steps: 4
-current-step: 1
+current-step: 2
 ---
 
 # Phase 3 — Ledger
@@ -36,7 +36,7 @@ Assessments (Phase 5) and Reminders (Phase 6).
 
 | Step | Slice | Spec | Status |
 |---|---|---|---|
-| 1 | Income and expenses — carries the spine | `docs/specs/ledger.md` | not-started |
+| 1 | Income and expenses — carries the spine | `docs/specs/ledger.md` | awaiting manual verification |
 | 2 | Transfers and arqueo | `docs/specs/ledger.md` | not-started |
 | 3 | Correcting movements | `docs/specs/ledger.md` | not-started |
 | 4 | Finding and classifying | `docs/specs/ledger.md` | not-started |
@@ -48,32 +48,32 @@ account, `RecordIncome`, `RecordExpense`, `AccountBalances`, `ListCategories`),
 UI Views (Movimientos, income and expense forms), Business Rules 1–4, 7, 9, 10.
 
 ### Domain and application tasks
-- [ ] Migration `internal/store/migrations/003_ledger.sql`: `categories` with the seven seed rows, `movements` with the table-level checks and indexes (ask first)
-- [ ] `internal/domain`: effect of a movement by kind; account balance as of a date; running balance (rule 9) for one account or the total; month totals (income, expense, adjustments, net)
-- [ ] `app.LedgerService` and `app.CategoryService` with repository interfaces; `ListCategories` (direction, include inactive)
-- [ ] `RecordIncome`: rules 1–4, 10; rejects categories with a `system_key`
-- [ ] `RecordExpense`: rules 1–4, 7; returns `NegativeBalanceWarning{Account, Resulting}` and writes nothing unless `ConfirmNegative`
-- [ ] `ListMovements` with `Filter{Month, AccountID}`: rows with display fields (category, vendor display name with ` (eliminado)`, account), running balance, totals, opening and closing balance
-- [ ] `AccountBalances(AsOf)`: per account and total
-- [ ] `internal/store`: SQLite implementation
-- [ ] Wide events `record_income`, `record_expense`: `movement_id`, `account_id`, `category_id`, `vendor_id`, `amount_cents`; a declined negative-balance warning logs `outcome=validation`, `warning=negative_balance`
-- [ ] `cmd/devseed`: six months of income and expenses across both accounts
+- [x] Migration `internal/store/migrations/003_ledger.sql`: `categories` with the seven seed rows, `movements` with the table-level checks and indexes (ask first)
+- [x] `internal/domain`: effect of a movement by kind; account balance as of a date; running balance (rule 9) for one account or the total; month totals (income, expense, adjustments, net)
+- [x] `app.LedgerService` and `app.CategoryService` with repository interfaces; `ListCategories` (direction, include inactive)
+- [x] `RecordIncome`: rules 1–4, 10; rejects categories with a `system_key`
+- [x] `RecordExpense`: rules 1–4, 7; returns `NegativeBalanceWarning{Account, Resulting}` and writes nothing unless `ConfirmNegative`
+- [x] `ListMovements` with `Filter{Month, AccountID}`: rows with display fields (category, vendor display name with ` (eliminado)`, account), running balance, totals, opening and closing balance
+- [x] `AccountBalances(AsOf)`: per account and total
+- [x] `internal/store`: SQLite implementation
+- [x] Wide events `record_income`, `record_expense`: `movement_id`, `account_id`, `category_id`, `vendor_id`, `amount_cents`; a declined negative-balance warning logs `outcome=validation`, `warning=negative_balance`
+- [x] `cmd/devseed`: six months of income and expenses across both accounts
 
 ### TUI tasks
-- [ ] `internal/tui/ledger` replaces the placeholder: columns Fecha, Categoría, De/Para, Descripción, Cuenta, Monto, Saldo, R; current month by default; cursor on the last row; `[`/`]` month; footer Ingresos, Gastos, Ajustes, Neto
-- [ ] Amount styles: income `+$150.00` Positive, expense `−$350.00` Negative
-- [ ] Income form (`i`) and expense form (`g`, vendor picker from Phase 2): every error at once; negative-balance warning shows the resulting balance and asks `Sí`/`No`
-- [ ] Summary panel shows `AccountBalances(today)`; any save sends a change message that reloads the summary and the open view
+- [x] `internal/tui/ledger` replaces the placeholder: columns Fecha, Categoría, De/Para, Descripción, Cuenta, Monto, Saldo, R; current month by default; cursor on the last row; `[`/`]` month; footer Ingresos, Gastos, Ajustes, Neto
+- [x] Amount styles: income `+$150.00` Positive, expense `−$350.00` Negative
+- [x] Income form (`i`) and expense form (`g`, vendor picker from Phase 2): every error at once; negative-balance warning shows the resulting balance and asks `Sí`/`No`
+- [x] Summary panel shows `AccountBalances(today)`; any save sends a change message that reloads the summary and the open view
 
 ### Test tasks
-- [ ] `internal/domain` table tests: balances, running balance across a month boundary, totals
-- [ ] `internal/domain` property test: for any movements, Σ account balances = opening total + income − expense + adjustments
-- [ ] `internal/app` tests: 7,500.00 cash − 178.50 → 7,321.50; date before opening or after today rejected; every invalid field together; `RecordIncome` with `Cuota` rejected; declined warning writes nothing; month totals equal the sum of rows; changing an opening balance moves every derived balance (setup acceptance)
-- [ ] TUI tests: forms show every error; warning `No` writes nothing; `[`/`]` changes the month
+- [x] `internal/domain` table tests: balances, running balance across a month boundary, totals
+- [x] `internal/domain` property test: for any movements, Σ account balances = opening total + income − expense + adjustments
+- [x] `internal/app` tests: 7,500.00 cash − 178.50 → 7,321.50; date before opening or after today rejected; every invalid field together; `RecordIncome` with `Cuota` rejected; declined warning writes nothing; month totals equal the sum of rows; changing an opening balance moves every derived balance (setup acceptance)
+- [x] TUI tests: forms show every error; warning `No` writes nothing; `[`/`]` changes the month
 
 ### Done when
-- [ ] `go build ./...`, `go vet ./...`, `just test` pass
-- [ ] An expense of 178.50 from cash shows cash at 7,321.50 in the list and in the summary panel
+- [x] `go build ./...`, `go vet ./...`, `just test` pass
+- [x] An expense of 178.50 from cash shows cash at 7,321.50 in the list and in the summary panel
 - [ ] Deferred Phase 0 manual checks: `just run` creates `munitorum.db` and `logs/` beside the binary and `q` exits cleanly; the shell renders correctly in Windows Terminal dark and light profiles
 
 ## Step 2 — Transfers and arqueo

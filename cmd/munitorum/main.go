@@ -54,9 +54,14 @@ func run() error {
 	}
 	defer db.Close()
 
-	svc := app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log)
-	dir := app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log)
-	model, err := startModel(context.Background(), svc, dir, time.Now())
+	ledgerRepo := store.NewLedgerRepository(db)
+	svcs := services{
+		setup:      app.NewSetupService(store.NewSetupRepository(db), app.SystemClock{}, log),
+		directory:  app.NewDirectoryService(store.NewVendorRepository(db), app.SystemClock{}, log),
+		ledger:     app.NewLedgerService(ledgerRepo, app.SystemClock{}, log),
+		categories: app.NewCategoryService(ledgerRepo),
+	}
+	model, err := startModel(context.Background(), svcs, time.Now())
 	if err != nil {
 		return err
 	}
@@ -107,20 +112,30 @@ func defaultDBPath() (string, error) {
 	return filepath.Join(filepath.Dir(exe), "munitorum.db"), nil
 }
 
+// services are the application services the screens call.
+type services struct {
+	setup      *app.SetupService
+	directory  *app.DirectoryService
+	ledger     *app.LedgerService
+	categories *app.CategoryService
+}
+
 // startModel picks the first screen: the setup wizard while no coto exists, the
 // shell once setup has completed. It runs only after the migrations succeeded
 // (setup rule 10), so a database that cannot be read never reaches the wizard.
-func startModel(ctx context.Context, svc *app.SetupService, dir *app.DirectoryService, today time.Time) (tea.Model, error) {
-	state, err := svc.GetSetupState(ctx)
+func startModel(ctx context.Context, svcs services, today time.Time) (tea.Model, error) {
+	state, err := svcs.setup.GetSetupState(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !state.Completed {
-		return tui.NewWizard(svc, today).WithDirectory(dir), nil
+		return tui.NewWizard(svcs.setup, today).WithDirectory(svcs.directory).
+			WithLedger(svcs.ledger, svcs.categories, svcs.directory, app.SystemClock{}), nil
 	}
-	settings, err := svc.GetSettings(ctx)
+	settings, err := svcs.setup.GetSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return tui.NewShell(svc, settings).WithDirectory(dir), nil
+	return tui.NewShell(svcs.setup, settings).WithDirectory(svcs.directory).
+		WithLedger(svcs.ledger, svcs.categories, svcs.directory, app.SystemClock{}), nil
 }

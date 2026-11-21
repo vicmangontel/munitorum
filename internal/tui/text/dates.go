@@ -22,6 +22,12 @@ func Date(t time.Time) string {
 	return fmt.Sprintf("%d %s %d", t.Day(), MonthAbbrevs[t.Month()-1], t.Year())
 }
 
+// DayMonth formats a business date as 05 nov, for a list that already shows
+// the month's year.
+func DayMonth(t time.Time) string {
+	return fmt.Sprintf("%02d %s", t.Day(), MonthAbbrevs[t.Month()-1])
+}
+
 // MonthYear formats a month as nov 2026.
 func MonthYear(year int, month time.Month) string {
 	return fmt.Sprintf("%s %d", MonthAbbrevs[month-1], year)

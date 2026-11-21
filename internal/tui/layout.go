@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/vicmangontel/munitorum/internal/app"
 	"github.com/vicmangontel/munitorum/internal/domain"
 	"github.com/vicmangontel/munitorum/internal/tui/text"
 	"github.com/vicmangontel/munitorum/internal/tui/theme"
@@ -96,18 +97,20 @@ func (m Model) summaryTitle() string {
 	return text.SummaryTitle
 }
 
-// summaryRows shows the opening balances; live balances arrive in Phase 3.
+// summaryRows shows each account's balance as of today once the ledger has
+// derived it, and its opening balance until then (or when the shell has no ledger).
 func (m Model) summaryRows(w int) string {
 	cash, bank, total := text.AccountCash, text.AccountBank, text.AmountPending
 	cashAmount, bankAmount := text.AmountPending, text.AmountPending
 	if m.settings != nil {
 		var sum domain.Money
 		for i, a := range m.settings.Accounts {
-			sum += a.OpeningBalance
+			balance := m.balanceOf(a)
+			sum += balance
 			if i == 0 {
-				cash, cashAmount = a.Name, a.OpeningBalance.Format()
+				cash, cashAmount = a.Name, balance.Format()
 			} else {
-				bank, bankAmount = a.Name, a.OpeningBalance.Format()
+				bank, bankAmount = a.Name, balance.Format()
 			}
 		}
 		total = sum.Format()
@@ -118,6 +121,19 @@ func (m Model) summaryRows(w int) string {
 		amountRow(text.AccountTotal, total, w, theme.AmountTotal),
 		amountRow(text.Available, text.AmountPending, w, theme.AmountTotal),
 	}, "\n")
+}
+
+// balanceOf is the derived balance of account a, or its opening balance when
+// the balances have not been read.
+func (m Model) balanceOf(a app.Account) domain.Money {
+	if m.balances != nil {
+		for _, b := range m.balances.Accounts {
+			if b.Account.ID == a.ID {
+				return b.Balance
+			}
+		}
+	}
+	return a.OpeningBalance
 }
 
 // amountRow puts the label on the left and the amount on the right.

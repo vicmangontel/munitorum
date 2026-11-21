@@ -153,7 +153,7 @@ func (m *Model) Update(msg tea.Msg) (view.View, tea.Cmd) {
 			m.notice = describe(msg.err)
 			return m, nil
 		}
-		return m, m.load()
+		return m, tea.Batch(m.load(), send(view.ChangedMsg{}))
 	case tea.KeyMsg:
 		return m.onKey(msg)
 	}
@@ -163,7 +163,7 @@ func (m *Model) Update(msg tea.Msg) (view.View, tea.Cmd) {
 // closeAfterSave is what a form opened from the list does once it saved: tell
 // the list, then close the overlay.
 func closeAfterSave(v app.Vendor) tea.Cmd {
-	return tea.Batch(send(SavedMsg{Vendor: v}), send(view.CloseOverlayMsg{}))
+	return tea.Batch(send(SavedMsg{Vendor: v}), send(view.ChangedMsg{}), send(view.CloseOverlayMsg{}))
 }
 
 func (m *Model) onLoaded(msg loadedMsg) tea.Cmd {

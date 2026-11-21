@@ -50,6 +50,7 @@ internal/
 ├── store/               SQLite repositories; migrations/ embedded NNN_description.sql
 ├── tui/                 Bubble Tea root model; one package per view
 │   ├── theme/           all colours and borders (Phase 0)
+│   ├── ledger/          Movimientos view and income/expense forms (Phase 3)
 │   └── text/            all user-visible Spanish strings
 ├── export/              Excel workbook writer
 └── logging/             slog JSON daily file

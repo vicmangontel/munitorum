@@ -113,3 +113,41 @@ func TestReset_SeedsTheDirectoryWithACompanyItsTechnicianServicesAndADeletedVend
 		t.Fatalf("live=%d deleted=%d services=%d technicians=%d; want 6 1 2 1", live, deleted, services, technicians)
 	}
 }
+
+func TestReset_SeedsSixMonthsOfIncomeAndExpensesAcrossBothAccountsWithoutANegativeBalance(t *testing.T) {
+	// Arrange
+	path := filepath.Join(t.TempDir(), "munitorum-dev.db")
+
+	// Act
+	_, err := reset(path)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var months, accounts, incomes, expenses, others, withVendor int
+	if err := db.QueryRow(`SELECT COUNT(DISTINCT substr(date, 1, 7)), COUNT(DISTINCT account_id),
+		COUNT(*) FILTER (WHERE kind = 'income'), COUNT(*) FILTER (WHERE kind = 'expense'),
+		COUNT(*) FILTER (WHERE kind NOT IN ('income', 'expense')), COUNT(vendor_id)
+		FROM movements WHERE deleted_at IS NULL`).Scan(&months, &accounts, &incomes, &expenses, &others, &withVendor); err != nil {
+		t.Fatal(err)
+	}
+	if months != 6 || accounts != 2 || incomes == 0 || expenses == 0 || others != 0 || withVendor == 0 {
+		t.Fatalf("months=%d accounts=%d incomes=%d expenses=%d others=%d withVendor=%d; want 6 months, both accounts, income and expenses with vendors, nothing else",
+			months, accounts, incomes, expenses, others, withVendor)
+	}
+	var negative int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM accounts a WHERE a.opening_balance_cents +
+		COALESCE((SELECT SUM(CASE kind WHEN 'income' THEN amount_cents ELSE -amount_cents END)
+		          FROM movements m WHERE m.account_id = a.id AND m.deleted_at IS NULL), 0) < 0`).Scan(&negative); err != nil {
+		t.Fatal(err)
+	}
+	if negative != 0 {
+		t.Fatalf("%d accounts end below zero, want none", negative)
+	}
+}
