@@ -321,6 +321,11 @@ one place and lets views stay free of colour literals.
   when it parsed, `movement_id` on success, `invalid_field_count` on a validation
   failure, `error` on failure. A declined negative-balance warning is outcome
   `validation` at `Warn` with `warning=negative_balance`. No descriptions or notes.
+  `action=record_transfer` carries the same fields with `to_account_id` instead of
+  `category_id`/`vendor_id`. `action=record_cash_count`: `outcome`, `duration_ms`,
+  `account_id`, `difference_cents` once computed (0 for a matching count),
+  `movement_id` when an adjustment was written, `invalid_field_count` on a validation
+  failure, `error` on failure.
 
 ## Testing Conventions
 
@@ -389,6 +394,14 @@ transfer-to-account filter), killed by added tests; final 130 killed, 0 lived, 1
 covered, efficacy 100%. Not covered: the earlier `directory.go`, `errors.go`,
 `events.go` and `setup_validate.go` lines, plus switch-case lines in `ledger.go`
 whose cases are tested; treated as the same artifact.
+**Phase 3 Step 2 (2026-11-26):** `./internal/app` — first run 1 lived (the 500-character
+notes boundary in `RecordCashCount`), killed by an exact-limit test; final 150 killed,
+0 lived, 18 not covered (up from 14), efficacy 100%. The new not-covered lines are
+switch-case lines in `ledger.go` (the counted-amount switch and the `accounts_same`
+case) whose cases are tested; treated as the same artifact. Runs while the machine was busy timed
+out many mutants and gave unstable counts; rerun on a quiet machine. `./internal/domain`
+— 104 killed, 0 lived, 13 not covered (the known artifacts; none in `ledger.go`), run
+before the cash-count property test was added.
 
 ## Known Deviations
 
@@ -401,9 +414,9 @@ coverage from `just test-coverage`.
 
 | Module | Coverage | Uncovered behavior |
 |---|---|---|
-| Domain (`internal/domain`: money, month, house code, opening rules, date/month input, `FoldKey`, vendor rules, ledger effects, balances, running balance, month totals) | tested — 99.4%; mutation 102 killed, 0 lived | One `ParseMoney` branch. Allocation and funds are not built yet |
-| Ledger service (`internal/app`: `LedgerService`, `CategoryService`, `NegativeBalanceWarning`; Step 1 operations) | tested — package 93.1%; mutation 130 killed, 0 lived | `ListMovements` loads every live movement and filters in Go (`debt:` in source); Steps 2–4 operations not built |
-| Movimientos (`internal/tui/ledger`: list, month keys, footer totals, income/expense forms, negative-balance confirmation) | tested — 81.4% | Vendor-clear key; load-failure notice; real rendering and 80×24 fit in Windows Terminal (manual only) |
+| Domain (`internal/domain`: money, month, house code, opening rules, date/month input, `FoldKey`, vendor rules, ledger effects, balances, running balance, month totals, cash-count difference) | tested — 99.4%; mutation 104 killed, 0 lived | One `ParseMoney` branch. Allocation and funds are not built yet |
+| Ledger service (`internal/app`: `LedgerService`, `CategoryService`, `NegativeBalanceWarning`; Steps 1–2 operations incl. `RecordTransfer`, `RecordCashCount`) | tested — package 93.4%; mutation 150 killed, 0 lived | `ListMovements` loads every live movement and filters in Go (`debt:` in source); Steps 3–4 operations not built |
+| Movimientos (`internal/tui/ledger`: list, month keys, footer totals, income/expense/transfer forms, negative-balance confirmation, Arqueo overlay with live difference) | tested — 85.4% | Vendor-clear key; load-failure notice; real rendering and 80×24 fit in Windows Terminal (manual only) |
 | Setup service (`internal/app`: `SetupService` incl. Ajustes operations, `ValidationError`, clock) | tested — 93.3% (package); mutation 77 killed, 0 lived (package, with Directory) | `GetSettings` error branch |
 | Directory service (`internal/app`: `DirectoryService`, `VendorConflict`, rules 1–8) | tested — every acceptance criterion and the restore rule | `ListVendors` loads every vendor and filters in Go (`debt:` in source) |
 | TUI shell (`internal/tui`: root, layout, overlay, wizard-to-shell swap, startup error, F2 Ajustes, view contract, summary balances and `ChangedMsg` reload) | tested — 97.5% | `Init` methods; right-edge guard in overlay placement; real rendering and colours in Windows Terminal (manual only) |
@@ -413,11 +426,11 @@ coverage from `just test-coverage`.
 | Ajustes (`internal/tui/settings`) | tested — 96.7% | Real rendering in Windows Terminal (manual only) |
 | Form (`internal/tui/form`) | tested — 88.0% | Rarely used cursor paths |
 | Confirmation (`internal/tui/confirm`) | partial — 58.8% in-package | Hosted in the Ajustes overlay and tested through `internal/tui/settings`; in-package tests are unit-only |
-| Text (`internal/tui/text`) | partial — 66.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
+| Text (`internal/tui/text`) | partial — 57.7% | Strings mostly exercised through view tests in other packages; a test checks every `app` validation code has a message; excluded from mutation |
 | Logging (`internal/logging`) | tested — 88.6% | Rare OS errors such as the log file failing to open |
 | Startup (`cmd/munitorum`) | partial — 39.3% | `openDatabase` and startup routing (fresh and completed databases) tested; `main`, `run`, and default path resolution are interactive wiring, untested |
 | Store (`internal/store`) | partial — 54.4% in-package | Setup, vendor and ledger repositories (ledger constraints also tested directly), including the Ajustes `UPDATE` methods, are covered through `internal/app` tests, which per-package coverage does not count; migration failure and rollback paths untested |
-| Dev fixtures (`cmd/devseed`) | partial — 77.9% | `main` wiring; recreate, migrate, the 18-house `CompleteSetup` seed, the directory seed, and the six-month ledger seed tested |
+| Dev fixtures (`cmd/devseed`) | partial — 78.9% | `main` wiring; recreate, migrate, the 18-house `CompleteSetup` seed, the directory seed, and the six-month ledger seed with two transfers and one arqueo adjustment tested |
 
 ## In-flight Work
 

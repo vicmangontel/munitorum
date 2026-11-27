@@ -1,6 +1,6 @@
 // Package ledger is the Movimientos view: the libro de caja of one month with its
-// running balance and totals. It opens the income and expense forms as overlays
-// and tells the root when something was saved.
+// running balance and totals. It opens the income, expense and transfer forms
+// and the Arqueo as overlays and tells the root when something was saved.
 package ledger
 
 import (
@@ -44,6 +44,7 @@ type (
 		kind       domain.MovementKind
 		today      time.Time
 		accounts   []app.Account
+		balances   []app.AccountBalance // on today
 		categories []app.Category
 		vendors    []picker.Item
 		err        error
@@ -98,14 +99,18 @@ func (m *Model) prepare(kind domain.MovementKind) tea.Cmd {
 		if err != nil {
 			return formDataMsg{kind: kind, err: err}
 		}
+		data := formDataMsg{kind: kind, today: today, balances: balances.Accounts}
+		for _, b := range balances.Accounts {
+			data.accounts = append(data.accounts, b.Account)
+		}
+		if kind == domain.MovementTransfer || kind == domain.MovementAdjustment {
+			return data // these have no category
+		}
 		categories, err := m.cats.ListCategories(ctx, app.ListCategoriesInput{Direction: kind})
 		if err != nil {
 			return formDataMsg{kind: kind, err: err}
 		}
-		data := formDataMsg{kind: kind, today: today, categories: categories}
-		for _, b := range balances.Accounts {
-			data.accounts = append(data.accounts, b.Account)
-		}
+		data.categories = categories
 		if kind == domain.MovementExpense {
 			vendors, err := m.dir.ListVendors(ctx, app.ListVendorsInput{})
 			if err != nil {
@@ -132,11 +137,15 @@ func (m *Model) Update(msg tea.Msg) (view.View, tea.Cmd) {
 			m.notice = describe(msg.err)
 			return m, nil
 		}
-		title := text.IncomeTitle
-		if msg.kind == domain.MovementExpense {
-			title = text.ExpenseTitle
+		switch msg.kind {
+		case domain.MovementAdjustment:
+			return m, openOverlay(text.CountTitle, newCountForm(m.svc, msg))
+		case domain.MovementTransfer:
+			return m, openOverlay(text.TransferTitle, newMovementForm(m.svc, msg))
+		case domain.MovementExpense:
+			return m, openOverlay(text.ExpenseTitle, newMovementForm(m.svc, msg))
 		}
-		return m, openOverlay(title, newMovementForm(m.svc, msg))
+		return m, openOverlay(text.IncomeTitle, newMovementForm(m.svc, msg))
 	case tea.KeyMsg:
 		return m.onKey(msg)
 	}
@@ -172,6 +181,10 @@ func (m *Model) onKey(msg tea.KeyMsg) (view.View, tea.Cmd) {
 		return m, m.prepare(domain.MovementIncome)
 	case "g":
 		return m, m.prepare(domain.MovementExpense)
+	case "t":
+		return m, m.prepare(domain.MovementTransfer)
+	case "a":
+		return m, m.prepare(domain.MovementAdjustment) // the Arqueo records an adjustment
 	}
 	return m, nil
 }
@@ -211,11 +224,17 @@ func (m *Model) widths() colWidths {
 }
 
 // row is one list line. The selected row is drawn in one style; the others
-// colour the amount by direction.
+// colour the amount by direction, and a transfer is drawn whole in Muted.
 func (m *Model) row(i int, w colWidths) string {
 	r := m.data.Rows[i]
 	amount, style := amountText(r.Movement)
-	party := text.WithDeletedSuffix(r.Vendor, r.VendorDeleted)
+	category, party := r.Category, text.WithDeletedSuffix(r.Vendor, r.VendorDeleted)
+	switch r.Movement.Kind {
+	case domain.MovementTransfer:
+		category, party = text.LabelTransfer, text.TransferTo(r.ToAccount)
+	case domain.MovementAdjustment:
+		category = text.LabelAdjustment
+	}
 	receipt := " "
 	switch r.Movement.Receipt {
 	case app.ReceiptPending:
@@ -225,11 +244,14 @@ func (m *Model) row(i int, w colWidths) string {
 	}
 
 	cells := []string{
-		text.DayMonth(r.Movement.Date), r.Category, party, r.Movement.Description, r.Account,
+		text.DayMonth(r.Movement.Date), category, party, r.Movement.Description, r.Account,
 		rightCell(amount, colAmount), rightCell(r.RunningBalance.Format(), colBalance), receipt,
 	}
 	if i == m.selected {
 		return theme.SelectedRow.Render("> " + m.line("", w, cells...))
+	}
+	if r.Movement.Kind == domain.MovementTransfer {
+		return theme.Label.Render(m.line("  ", w, cells...))
 	}
 	// The amount is the sixth cell: pad it plain, then colour only its text.
 	pad := strings.Repeat(" ", colAmount-lipgloss.Width(amount))
@@ -247,16 +269,26 @@ func (m *Model) line(marker string, w colWidths, cells ...string) string {
 	}, " ")
 }
 
-// amountText is the signed amount of a movement and the style it is drawn in:
-// income +$150.00 Positive, expense −$350.00 Negative.
+// amountText is the amount of a movement and the style it is drawn in: income
+// +$150.00 Positive, expense −$350.00 Negative, an adjustment signed by its
+// direction; a transfer is the plain amount, drawn Muted with its row.
 func amountText(m app.Movement) (string, lipgloss.Style) {
 	switch m.Kind {
-	case domain.MovementIncome:
-		return "+" + m.Amount.Format(), theme.AmountIncome
 	case domain.MovementExpense:
-		return (-m.Amount).Format(), theme.AmountExpense
+		return signedAmount(-m.Amount)
+	case domain.MovementTransfer:
+		return m.Amount.Format(), lipgloss.NewStyle()
 	}
-	return m.Amount.Format(), lipgloss.NewStyle()
+	return signedAmount(m.Amount)
+}
+
+// signedAmount is a change to a balance with its sign shown and the style of
+// its direction: +$150.00 Positive, −$350.00 Negative.
+func signedAmount(change domain.Money) (string, lipgloss.Style) {
+	if change < 0 {
+		return change.Format(), theme.AmountExpense
+	}
+	return "+" + change.Format(), theme.AmountIncome
 }
 
 // cell cuts s to w cells with an ellipsis and pads it to exactly w.
@@ -275,6 +307,8 @@ func (m *Model) KeyHints() []view.Hint {
 		{Key: text.KeyMove, Desc: text.HintMove},
 		{Key: text.KeyIncome, Desc: text.HintIncome},
 		{Key: text.KeyExpense, Desc: text.HintExpense},
+		{Key: text.KeyTransfer, Desc: text.HintTransfer},
+		{Key: text.KeyCount, Desc: text.HintCount},
 		{Key: text.KeyMonths, Desc: text.HintMonth},
 	}
 }

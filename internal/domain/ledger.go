@@ -109,3 +109,7 @@ func SumTotals(entries []Entry) Totals {
 	t.Net = t.Income - t.Expense + t.Adjustments
 	return t
 }
+
+// CountDifference is what a cash count adds to the books: the money counted
+// minus the system balance. Zero means the count matches.
+func CountDifference(counted, system Money) Money { return counted - system }

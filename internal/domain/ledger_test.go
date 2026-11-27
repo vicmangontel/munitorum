@@ -166,3 +166,24 @@ func TestSumTotals_OfNoEntriesIsZero(t *testing.T) {
 		t.Fatalf("SumTotals(nil) = %+v, want zero", got)
 	}
 }
+
+func TestCountDifference_IsCountedMinusSystem(t *testing.T) {
+	cases := []struct {
+		name            string
+		counted, system Money
+		want            Money
+	}{
+		{"short", 430000, 432350, -2350},
+		{"over", 432350, 430000, 2350},
+		{"matching", 432350, 432350, 0},
+		{"nothing counted against a positive system", 0, 1000, -1000},
+		{"counted against an overdrawn system", 0, -5000, 5000},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := CountDifference(c.counted, c.system); got != c.want {
+				t.Fatalf("CountDifference(%d, %d) = %d, want %d", c.counted, c.system, got, c.want)
+			}
+		})
+	}
+}

@@ -114,7 +114,7 @@ func TestReset_SeedsTheDirectoryWithACompanyItsTechnicianServicesAndADeletedVend
 	}
 }
 
-func TestReset_SeedsSixMonthsOfIncomeAndExpensesAcrossBothAccountsWithoutANegativeBalance(t *testing.T) {
+func TestReset_SeedsSixMonthsOfLedgerMovementsAcrossBothAccountsWithoutANegativeBalance(t *testing.T) {
 	// Arrange
 	path := filepath.Join(t.TempDir(), "munitorum-dev.db")
 
@@ -130,21 +130,33 @@ func TestReset_SeedsSixMonthsOfIncomeAndExpensesAcrossBothAccountsWithoutANegati
 		t.Fatal(err)
 	}
 	defer db.Close()
-	var months, accounts, incomes, expenses, others, withVendor int
+	var months, accounts, incomes, expenses, transfers, adjustments, others, withVendor int
 	if err := db.QueryRow(`SELECT COUNT(DISTINCT substr(date, 1, 7)), COUNT(DISTINCT account_id),
 		COUNT(*) FILTER (WHERE kind = 'income'), COUNT(*) FILTER (WHERE kind = 'expense'),
-		COUNT(*) FILTER (WHERE kind NOT IN ('income', 'expense')), COUNT(vendor_id)
-		FROM movements WHERE deleted_at IS NULL`).Scan(&months, &accounts, &incomes, &expenses, &others, &withVendor); err != nil {
+		COUNT(*) FILTER (WHERE kind = 'transfer'), COUNT(*) FILTER (WHERE kind = 'adjustment'),
+		COUNT(*) FILTER (WHERE kind NOT IN ('income', 'expense', 'transfer', 'adjustment')), COUNT(vendor_id)
+		FROM movements WHERE deleted_at IS NULL`).Scan(&months, &accounts, &incomes, &expenses, &transfers, &adjustments, &others, &withVendor); err != nil {
 		t.Fatal(err)
 	}
 	if months != 6 || accounts != 2 || incomes == 0 || expenses == 0 || others != 0 || withVendor == 0 {
-		t.Fatalf("months=%d accounts=%d incomes=%d expenses=%d others=%d withVendor=%d; want 6 months, both accounts, income and expenses with vendors, nothing else",
+		t.Fatalf("months=%d accounts=%d incomes=%d expenses=%d others=%d withVendor=%d; want 6 months, both accounts, income and expenses with vendors, no other kind",
 			months, accounts, incomes, expenses, others, withVendor)
+	}
+	if transfers != 2 || adjustments != 1 {
+		t.Fatalf("transfers=%d adjustments=%d; want two transfers and one arqueo adjustment", transfers, adjustments)
+	}
+	var adjustment int64
+	if err := db.QueryRow(`SELECT amount_cents FROM movements WHERE kind = 'adjustment'`).Scan(&adjustment); err != nil {
+		t.Fatal(err)
+	}
+	if adjustment != -2350 {
+		t.Fatalf("arqueo adjustment = %d cents, want −2350", adjustment)
 	}
 	var negative int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM accounts a WHERE a.opening_balance_cents +
-		COALESCE((SELECT SUM(CASE kind WHEN 'income' THEN amount_cents ELSE -amount_cents END)
-		          FROM movements m WHERE m.account_id = a.id AND m.deleted_at IS NULL), 0) < 0`).Scan(&negative); err != nil {
+		COALESCE((SELECT SUM(CASE kind WHEN 'income' THEN amount_cents WHEN 'adjustment' THEN amount_cents ELSE -amount_cents END)
+		          FROM movements m WHERE m.account_id = a.id AND m.deleted_at IS NULL), 0) +
+		COALESCE((SELECT SUM(amount_cents) FROM movements m WHERE m.to_account_id = a.id AND m.deleted_at IS NULL), 0) < 0`).Scan(&negative); err != nil {
 		t.Fatal(err)
 	}
 	if negative != 0 {

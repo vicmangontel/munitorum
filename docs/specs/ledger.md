@@ -67,7 +67,7 @@ movements with `date ≤` that date. Computed in `internal/domain`.
 | `RecordIncome` | Treasurer | `Date, AccountID, CategoryID, Amount, Description, Notes, ReceiptLink, ManualReceiptPending` | Rules 1–4, 10; category must be an active income category with no `system_key` | Created movement |
 | `RecordExpense` | Treasurer | `Date, AccountID, CategoryID, VendorID?, Amount, Description, Notes, ReceiptLink, ConfirmNegative` | Rules 1–4, 7 | Created movement, or `NegativeBalanceWarning{Account, Resulting}` when not confirmed |
 | `RecordTransfer` | Treasurer | `Date, FromAccountID, ToAccountID, Amount, Description?, Notes, ConfirmNegative` | Rules 1–3, 7, 8 | Created movement or warning |
-| `RecordCashCount` | Treasurer | `Date, AccountID, Counted, Notes` | Rule 11 | `{Difference, Movement?}` |
+| `RecordCashCount` | Treasurer | `Date, AccountID, Counted, Notes, Describe` | Rules 1, 3, 11 | `{Difference, Movement?}` |
 | `UpdateIncome` / `UpdateExpense` / `UpdateTransfer` / `UpdateAdjustment` | Treasurer | `ID` + same fields as record | Same rules; kind cannot change; rule 12 | Updated movement or warning |
 | `DeleteMovement` | Treasurer | `ID` | Soft delete; confirmation in UI | — |
 | `RestoreMovement` | Treasurer | `ID` | Rule 7 warning applies | — |
@@ -101,8 +101,18 @@ they arrive with their first users.
 - `RecordExpense.VendorID`, when given, must name a live vendor (`vendor_invalid`).
 - `ListMovements` rows carry the vendor display name and a `VendorDeleted` flag; the
   TUI adds the ` (eliminado)` suffix, since `internal/app` holds no Spanish text.
+- `RecordTransfer` returns `app.NegativeBalanceWarning` the same way. Its
+  `Description` is required by the app (1–120); the form fills a blank one with the
+  generated `Transferencia {from} → {to}` from `internal/tui/text`. The destination
+  account is reported on field `to_account_id`.
+- `RecordCashCount.Describe` is a formatter the TUI supplies from `internal/tui/text`;
+  the app calls it with the counted and system amounts it computed, so the stored
+  `Arqueo: contado $X, sistema $Y` always matches the difference. A nil `Describe`
+  is an error (nothing written). The counted amount is reported on field `amount`.
+  A cash count never raises the rule 7 warning.
 - Validation codes: `date_invalid`, `date_future`, `date_before_opening`,
-  `amount_invalid`, `amount_not_positive`, `account_invalid`, `description_length`,
+  `amount_invalid`, `amount_not_positive`, `amount_negative` (counted < 0),
+  `account_invalid`, `accounts_same` (rule 8), `description_length`,
   `notes_length`, `receipt_link_length`, `category_invalid`, `category_reserved`,
   `vendor_invalid`.
 
@@ -138,7 +148,8 @@ total across accounts.
    movements, all dates) of an account the operation touches below zero, the operation
    returns a warning and writes nothing unless `ConfirmNegative` is set. Other accounts
    are not checked. Exactly zero does not warn; an account already below zero warns
-   again. Income never warns.
+   again. Income never warns. A transfer checks only its source account; money
+   arriving in a negative destination account never warns.
 8. Transfer accounts must differ.
 9. Ordering: `date` ascending, then `id` ascending. Running balance starts from the
    balance at the end of the day before the first row in the filter.

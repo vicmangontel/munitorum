@@ -6,7 +6,7 @@ status: in-progress
 spec: docs/specs/ledger.md
 depends-on: phase-1, phase-2
 steps: 4
-current-step: 2
+current-step: 3
 ---
 
 # Phase 3 — Ledger
@@ -37,7 +37,7 @@ Assessments (Phase 5) and Reminders (Phase 6).
 | Step | Slice | Spec | Status |
 |---|---|---|---|
 | 1 | Income and expenses — carries the spine | `docs/specs/ledger.md` | awaiting manual verification |
-| 2 | Transfers and arqueo | `docs/specs/ledger.md` | not-started |
+| 2 | Transfers and arqueo | `docs/specs/ledger.md` | done |
 | 3 | Correcting movements | `docs/specs/ledger.md` | not-started |
 | 4 | Finding and classifying | `docs/specs/ledger.md` | not-started |
 
@@ -82,24 +82,24 @@ Spec sections: Use Cases (`RecordTransfer`, `RecordCashCount`), UI Views (transf
 Arqueo), Business Rules 3, 7, 8, 11.
 
 ### Domain and application tasks
-- [ ] `internal/domain`: cash-count difference (counted − system balance as of the date, all movements of that date included)
-- [ ] `RecordTransfer`: rules 1–3, 7, 8; generated description `Transferencia {from} → {to}` (text supplied by the form from `internal/tui/text`)
-- [ ] `RecordCashCount`: rule 11; difference 0 writes nothing; otherwise one `adjustment` with description `Arqueo: contado $X, sistema $Y`
-- [ ] Wide events `record_transfer` (`account_id`, `to_account_id`, `amount_cents`), `record_cash_count` (`account_id`, `difference_cents`, `movement_id` when written)
-- [ ] `cmd/devseed`: two transfers and one arqueo adjustment
+- [x] `internal/domain`: cash-count difference (counted − system balance as of the date, all movements of that date included)
+- [x] `RecordTransfer`: rules 1–3, 7, 8; generated description `Transferencia {from} → {to}` (text supplied by the form from `internal/tui/text`)
+- [x] `RecordCashCount`: rule 11; difference 0 writes nothing; otherwise one `adjustment` with description `Arqueo: contado $X, sistema $Y`
+- [x] Wide events `record_transfer` (`account_id`, `to_account_id`, `amount_cents`), `record_cash_count` (`account_id`, `difference_cents`, `movement_id` when written)
+- [x] `cmd/devseed`: two transfers and one arqueo adjustment
 
 ### TUI tasks
-- [ ] Transfer form (`t`) with the negative-balance warning
-- [ ] Arqueo overlay (`a`): account, date, counted amount; system balance and difference update live; `Cuadra` when zero
-- [ ] Display: transfer as one row `$600.00 Efectivo → Banco (NU)` in Muted; adjustment signed with label `Ajuste`
+- [x] Transfer form (`t`) with the negative-balance warning
+- [x] Arqueo overlay (`a`): account, date, counted amount; system balance and difference update live; `Cuadra` when zero
+- [x] Display: transfer as one row `$600.00 Efectivo → Banco (NU)` in Muted; adjustment signed with label `Ajuste`
 
 ### Test tasks
-- [ ] `internal/app` tests: 600.00 cash → bank changes both balances and not the total and is one row; same account rejected; transfer leaving cash negative warns; count 4,300.00 vs system 4,323.50 → −23.50 adjustment; matching count writes nothing; negative counted rejected
-- [ ] TUI tests: arqueo difference updates as the amount is typed
+- [x] `internal/app` tests: 600.00 cash → bank changes both balances and not the total and is one row; same account rejected; transfer leaving cash negative warns; count 4,300.00 vs system 4,323.50 → −23.50 adjustment; matching count writes nothing; negative counted rejected
+- [x] TUI tests: arqueo difference updates as the amount is typed
 
 ### Done when
-- [ ] `go build ./...`, `go vet ./...`, `just test` pass
-- [ ] A transfer and an arqueo adjustment appear in Movimientos and the summary panel matches them
+- [x] `go build ./...`, `go vet ./...`, `just test` pass
+- [x] A transfer and an arqueo adjustment appear in Movimientos and the summary panel matches them
 
 ## Step 3 — Correcting movements
 

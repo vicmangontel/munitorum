@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -15,7 +16,8 @@ import (
 // Field keys of the movement inputs, as they appear in ValidationError.Fields.
 const (
 	FieldDate        = "date"
-	FieldAccount     = "account_id"
+	FieldAccount     = "account_id" // the account of a movement; the source of a transfer
+	FieldToAccount   = "to_account_id"
 	FieldCategory    = "category_id"
 	FieldVendor      = "vendor_id"
 	FieldAmount      = "amount"
@@ -36,6 +38,8 @@ const (
 	CodeCategoryInvalid   = "category_invalid"    // rule 4: unknown, inactive, or of the other direction
 	CodeCategoryReserved  = "category_reserved"   // rule 4: income recorded by houses or assessments only
 	CodeVendorInvalid     = "vendor_invalid"      // not a live vendor
+	CodeAccountsSame      = "accounts_same"       // rule 8: a transfer needs two accounts
+	CodeAmountNegative    = "amount_negative"     // rule 11: counted money is zero or more
 )
 
 // Field length limits (ledger rule 3), in characters.
@@ -127,6 +131,39 @@ type ExpenseInput struct {
 	ConfirmNegative bool
 }
 
+// TransferInput is what the treasurer typed for a transfer. Description is
+// required: the form fills in the generated text when the treasurer leaves it
+// blank, since internal/app holds no Spanish. ConfirmNegative accepts the
+// NegativeBalanceWarning for the source account.
+type TransferInput struct {
+	Date            string
+	FromAccountID   int64
+	ToAccountID     int64
+	Amount          string
+	Description     string
+	Notes           string
+	ConfirmNegative bool
+}
+
+// CashCountInput is a cash count: the money Counted in AccountID on Date, as
+// typed. Describe, supplied by the TUI, words the adjustment from the counted
+// and system amounts the service computed, so the stored text always matches
+// the difference; internal/app holds no Spanish.
+type CashCountInput struct {
+	Date      string
+	AccountID int64
+	Counted   string
+	Notes     string
+	Describe  func(counted, system domain.Money) string
+}
+
+// CashCountResult is the outcome of a cash count. Movement is nil when the
+// count matched the system balance and nothing was written.
+type CashCountResult struct {
+	Difference domain.Money
+	Movement   *Movement
+}
+
 // LedgerFilter selects the rows of ListMovements. Month is required until the
 // all-months filter arrives; a zero AccountID is every account.
 type LedgerFilter struct {
@@ -204,6 +241,9 @@ func NewLedgerService(repo LedgerRepository, clock Clock, log *slog.Logger) *Led
 // emit writes the wide event of one operation; see logEvent.
 func (s *LedgerService) emit(ctx context.Context, action string, started time.Time, err error, m Movement) {
 	fields := []any{"account_id", m.AccountID}
+	if m.ToAccountID != nil {
+		fields = append(fields, "to_account_id", *m.ToAccountID)
+	}
 	if m.CategoryID != nil {
 		fields = append(fields, "category_id", *m.CategoryID)
 	}
@@ -281,6 +321,116 @@ func (s *LedgerService) RecordExpense(ctx context.Context, in ExpenseInput) (cre
 	return created, err
 }
 
+// RecordTransfer applies ledger rules 1 to 3, 7 and 8 and writes one transfer.
+// Only the source account is checked for a negative balance: when the transfer
+// would leave it below zero, nothing is written and a NegativeBalanceWarning is
+// returned, unless ConfirmNegative is set.
+func (s *LedgerService) RecordTransfer(ctx context.Context, in TransferInput) (created Movement, err error) {
+	started := time.Now()
+	var m Movement
+	defer func() { s.emit(ctx, "record_transfer", started, err, m) }()
+
+	err = s.repo.InTx(ctx, func(tx LedgerStore) error {
+		var settings Settings
+		var err error
+		m, settings, err = s.check(ctx, tx, domain.MovementTransfer, movementFields{
+			date: in.Date, amount: in.Amount, description: in.Description, notes: in.Notes,
+			accountID: in.FromAccountID, toAccountID: in.ToAccountID,
+		})
+		if err != nil {
+			return err
+		}
+		m.Receipt = ReceiptNone
+		if !in.ConfirmNegative {
+			if err := checkNegative(ctx, tx, settings, m); err != nil {
+				return err
+			}
+		}
+		if err := s.insert(ctx, tx, &m); err != nil {
+			return err
+		}
+		created = m
+		return nil
+	})
+	return created, err
+}
+
+// RecordCashCount applies ledger rule 11. The system balance is the account's
+// balance on Date including every movement of that day. A count that matches
+// writes nothing; otherwise one adjustment for the difference is written. It
+// returns an error, without writing, when in.Describe is nil.
+func (s *LedgerService) RecordCashCount(ctx context.Context, in CashCountInput) (result CashCountResult, err error) {
+	started := time.Now()
+	known := false // the difference was computed
+	defer func() {
+		fields := []any{"account_id", in.AccountID}
+		if known {
+			fields = append(fields, "difference_cents", int64(result.Difference))
+		}
+		if result.Movement != nil {
+			fields = append(fields, "movement_id", result.Movement.ID)
+		}
+		logEvent(ctx, s.log, "record_cash_count", started, err, fields)
+	}()
+	if in.Describe == nil {
+		return CashCountResult{}, errors.New("record cash count: no Describe function")
+	}
+
+	err = s.repo.InTx(ctx, func(tx LedgerStore) error {
+		settings, err := tx.Settings(ctx)
+		if err != nil {
+			return fmt.Errorf("check cash count: %w", err)
+		}
+		var ve ValidationError
+		date, code := s.checkDate(settings, in.Date)
+		if code != "" {
+			ve.add(FieldDate, code)
+		}
+		i := slices.IndexFunc(settings.Accounts, func(a Account) bool { return a.ID == in.AccountID })
+		if i < 0 {
+			ve.add(FieldAccount, CodeAccountInvalid)
+		}
+		counted, perr := domain.ParseMoney(in.Counted)
+		switch {
+		case perr != nil:
+			ve.add(FieldAmount, CodeAmountInvalid)
+		case counted < 0:
+			ve.add(FieldAmount, CodeAmountNegative)
+		}
+		notes := strings.TrimSpace(in.Notes)
+		if utf8.RuneCountInString(notes) > maxNotes {
+			ve.add(FieldNotes, CodeNotesLength)
+		}
+		if err := ve.err(); err != nil {
+			return err
+		}
+
+		movements, err := tx.Movements(ctx)
+		if err != nil {
+			return fmt.Errorf("check cash count: %w", err)
+		}
+		account := settings.Accounts[i]
+		system := domain.BalanceAsOf(account.OpeningBalance, account.ID, entriesOf(movements), date)
+		result.Difference, known = domain.CountDifference(counted, system), true
+		if result.Difference == 0 {
+			return nil
+		}
+		m := Movement{
+			Date: date, Kind: domain.MovementAdjustment, AccountID: account.ID, Amount: result.Difference,
+			Description: in.Describe(counted, system), Notes: notes, Receipt: ReceiptNone,
+		}
+		if err := s.insert(ctx, tx, &m); err != nil {
+			return err
+		}
+		result.Movement = &m
+		return nil
+	})
+	if err != nil {
+		result.Movement = nil // the transaction rolled back, so nothing was written
+	}
+	return result, err
+}
+
 func (s *LedgerService) insert(ctx context.Context, tx LedgerStore, m *Movement) error {
 	id, err := tx.InsertMovement(ctx, *m, s.clock.Now())
 	if err != nil {
@@ -293,7 +443,7 @@ func (s *LedgerService) insert(ctx context.Context, tx LedgerStore, m *Movement)
 // movementFields is what the record operations share; the text is as typed.
 type movementFields struct {
 	date, amount, description, notes, receiptLink string
-	accountID, categoryID                         int64
+	accountID, toAccountID, categoryID            int64 // toAccountID: transfers only; categoryID: income and expense only
 	vendorID                                      *int64
 }
 
@@ -306,23 +456,16 @@ func (s *LedgerService) check(ctx context.Context, tx LedgerStore, kind domain.M
 		return Movement{}, Settings{}, fmt.Errorf("check movement: %w", err)
 	}
 	m := Movement{
-		Kind: kind, AccountID: f.accountID, CategoryID: &f.categoryID, VendorID: f.vendorID,
+		Kind: kind, AccountID: f.accountID, VendorID: f.vendorID,
 		Description: strings.TrimSpace(f.description), Notes: strings.TrimSpace(f.notes),
 		ReceiptLink: strings.TrimSpace(f.receiptLink),
 	}
 	var ve ValidationError
 
-	now := s.clock.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	date, err := domain.ParseInputDate(f.date)
-	switch {
-	case err != nil:
-		ve.add(FieldDate, CodeDateInvalid)
-	case date.Before(settings.OpeningDate):
-		ve.add(FieldDate, CodeDateBeforeOpening)
-	case date.After(today):
-		ve.add(FieldDate, CodeDateFuture)
-	default:
+	date, code := s.checkDate(settings, f.date)
+	if code != "" {
+		ve.add(FieldDate, code)
+	} else {
 		m.Date = date
 	}
 
@@ -335,15 +478,29 @@ func (s *LedgerService) check(ctx context.Context, tx LedgerStore, kind domain.M
 		m.Amount = amount
 	}
 
-	if !slices.ContainsFunc(settings.Accounts, func(a Account) bool { return a.ID == f.accountID }) {
+	hasAccount := func(id int64) bool {
+		return slices.ContainsFunc(settings.Accounts, func(a Account) bool { return a.ID == id })
+	}
+	if !hasAccount(f.accountID) {
 		ve.add(FieldAccount, CodeAccountInvalid)
 	}
-	categories, err := tx.Categories(ctx)
-	if err != nil {
-		return m, settings, fmt.Errorf("check movement: %w", err)
-	}
-	if code := categoryProblem(categories, kind, f.categoryID); code != "" {
-		ve.add(FieldCategory, code)
+	if kind == domain.MovementTransfer {
+		m.ToAccountID = &f.toAccountID
+		switch {
+		case !hasAccount(f.toAccountID):
+			ve.add(FieldToAccount, CodeAccountInvalid)
+		case f.toAccountID == f.accountID:
+			ve.add(FieldToAccount, CodeAccountsSame)
+		}
+	} else {
+		m.CategoryID = &f.categoryID
+		categories, err := tx.Categories(ctx)
+		if err != nil {
+			return m, settings, fmt.Errorf("check movement: %w", err)
+		}
+		if code := categoryProblem(categories, kind, f.categoryID); code != "" {
+			ve.add(FieldCategory, code)
+		}
 	}
 	if f.vendorID != nil {
 		vendors, err := tx.Vendors(ctx)
@@ -365,6 +522,23 @@ func (s *LedgerService) check(ctx context.Context, tx LedgerStore, kind domain.M
 		ve.add(FieldReceiptLink, CodeReceiptLinkLength)
 	}
 	return m, settings, ve.err()
+}
+
+// checkDate applies rule 1 to the date as typed: it returns the date, or the
+// code of why it cannot be used.
+func (s *LedgerService) checkDate(settings Settings, typed string) (time.Time, string) {
+	now := s.clock.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	date, err := domain.ParseInputDate(typed)
+	switch {
+	case err != nil:
+		return time.Time{}, CodeDateInvalid
+	case date.Before(settings.OpeningDate):
+		return time.Time{}, CodeDateBeforeOpening
+	case date.After(today):
+		return time.Time{}, CodeDateFuture
+	}
+	return date, ""
 }
 
 // categoryProblem is the code for why category id cannot be used by a movement

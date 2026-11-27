@@ -132,6 +132,8 @@ var validationMessages = map[string]string{
 	"category_invalid":           "Elija una categoría activa.",
 	"category_reserved":          "Esa categoría la registra otro módulo; elija otra.",
 	"vendor_invalid":             "Elija un proveedor activo del directorio.",
+	"accounts_same":              "Elija una cuenta de destino distinta de la de origen.",
+	"amount_negative":            "El monto contado no puede ser negativo.",
 }
 
 // ValidationMessage is the Spanish message for an app validation code. An

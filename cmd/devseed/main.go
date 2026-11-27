@@ -17,6 +17,7 @@ import (
 	"github.com/vicmangontel/munitorum/internal/app"
 	"github.com/vicmangontel/munitorum/internal/domain"
 	"github.com/vicmangontel/munitorum/internal/store"
+	"github.com/vicmangontel/munitorum/internal/tui/text"
 )
 
 var devDB = filepath.Join("dev", "munitorum-dev.db")
@@ -131,7 +132,8 @@ func seedDirectory(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// seedLedger records six months of income and expenses across both accounts,
+// seedLedger records six months of income and expenses across both accounts, two
+// transfers between them and a cash count today that is 23.50 short,
 // ending with the current month: other income, services paid to CFE and Basura,
 // supplies, preventive maintenance by Portones Acme's technician, and one repair.
 // Every movement goes through the ledger service, so the rules hold for the
@@ -188,6 +190,13 @@ func seedLedger(ctx context.Context, db *sql.DB, now time.Time) error {
 			return err
 		}
 
+		transfer := func(day int, from, to int64, amount, description string) error {
+			_, err := ledger.RecordTransfer(ctx, app.TransferInput{
+				Date: date(day), FromAccountID: from, ToAccountID: to, Amount: amount, Description: description,
+			})
+			return err
+		}
+
 		steps := []error{
 			income(3, bank, "1,500.00", "Renta del salón"),
 			expense(5, bank, "Servicios", "CFE", "1,150.00", "Recibo de luz"),
@@ -203,11 +212,33 @@ func seedLedger(ctx context.Context, db *sql.DB, now time.Time) error {
 		if ago%2 == 1 {
 			steps = append(steps, income(25, cash, "200.00", "Uso del salón"))
 		}
+		switch ago { // one transfer each way
+		case 4:
+			steps = append(steps, transfer(15, cash, bank, "500.00", "Depósito del efectivo al banco"))
+		case 1:
+			steps = append(steps, transfer(15, bank, cash, "300.00", "Fondo de efectivo para gastos"))
+		}
 		for _, err := range steps {
 			if err != nil {
 				return fmt.Errorf("seed ledger: %w", err)
 			}
 		}
+	}
+
+	// The cash box is counted today, 23.50 short of what the books say.
+	balances, err = ledger.AccountBalances(ctx, now)
+	if err != nil {
+		return fmt.Errorf("seed ledger: %w", err)
+	}
+	counted := balances.Accounts[0].Balance - 2350
+	_, err = ledger.RecordCashCount(ctx, app.CashCountInput{
+		Date: domain.FormatInputDate(now), AccountID: cash, Counted: fmt.Sprintf("%d.%02d", counted/100, counted%100),
+		Describe: func(counted, system domain.Money) string {
+			return text.CashCountDescription(counted.Format(), system.Format())
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("seed ledger: %w", err)
 	}
 	return nil
 }

@@ -56,6 +56,7 @@ var Codes = append([]string{
 	CodeDateBeforeOpening, CodeAmountNotPositive, CodeAccountInvalid,
 	CodeDescriptionLength, CodeNotesLength, CodeReceiptLinkLength,
 	CodeCategoryInvalid, CodeCategoryReserved, CodeVendorInvalid,
+	CodeAccountsSame, CodeAmountNegative,
 }, slices.Concat(domain.OpeningIssues, domain.VendorIssues)...)
 
 // Field length limits (setup rules 1 and 5), in characters.

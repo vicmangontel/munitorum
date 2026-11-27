@@ -3,6 +3,7 @@ package ledger
 import (
 	"context"
 	"errors"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -32,7 +33,7 @@ type writtenMsg struct {
 	err    error
 }
 
-// movementForm is the income and expense form. It implements view.Content and
+// movementForm is the income, expense and transfer form. It implements view.Content and
 // view.EscapeHandler: esc leaves the vendor picker, and answers No to the
 // negative-balance question, before it closes the form.
 type movementForm struct {
@@ -69,7 +70,21 @@ func newMovementForm(svc *app.LedgerService, data formDataMsg) *movementForm {
 		categoryNames = append(categoryNames, c.Name)
 	}
 
-	fields := []form.Field{
+	var fields []form.Field
+	if f.kind == domain.MovementTransfer {
+		to := accountNames[len(accountNames)-1] // the last account, so it differs from the first
+		fields = []form.Field{
+			{Key: app.FieldDate, Label: text.LabelDate, Value: domain.FormatInputDate(data.today)},
+			{Key: app.FieldAccount, Label: text.LabelFrom, Choices: accountNames},
+			{Key: app.FieldToAccount, Label: text.LabelTo, Choices: accountNames, Value: to},
+			{Key: app.FieldAmount, Label: text.LabelAmount},
+			{Key: app.FieldDescription, Label: text.LabelDescription},
+			{Key: app.FieldNotes, Label: text.LabelNotes},
+		}
+		f.form = form.New(fields...)
+		return f
+	}
+	fields = []form.Field{
 		{Key: app.FieldDate, Label: text.LabelDate, Value: domain.FormatInputDate(data.today)},
 		{Key: app.FieldAccount, Label: text.LabelAccount, Choices: accountNames},
 		{Key: app.FieldCategory, Label: text.LabelCategory, Choices: categoryNames},
@@ -158,11 +173,12 @@ func (f *movementForm) onKey(msg tea.KeyMsg) tea.Cmd {
 	return f.form.Update(msg)
 }
 
-// accountID and categoryID are the ids of the names the selectors show; 0 when
+// accountID and categoryID are the ids of the names the selectors show (accountID
+// reads the selector with the given key); 0 when
 // there is none, which the service reports as invalid.
-func (f *movementForm) accountID() int64 {
+func (f *movementForm) accountID(key string) int64 {
 	for _, a := range f.accounts {
-		if a.Name == f.form.Value(app.FieldAccount) {
+		if a.Name == f.form.Value(key) {
 			return a.ID
 		}
 	}
@@ -180,18 +196,28 @@ func (f *movementForm) categoryID() int64 {
 
 // submit writes what the form holds. confirmed accepts a negative balance.
 func (f *movementForm) submit(confirmed bool) tea.Cmd {
-	date, account, category := f.form.Value(app.FieldDate), f.accountID(), f.categoryID()
+	date, account, category := f.form.Value(app.FieldDate), f.accountID(app.FieldAccount), f.categoryID()
 	amount, description := f.form.Value(app.FieldAmount), f.form.Value(app.FieldDescription)
 	notes, link := f.form.Value(app.FieldNotes), f.form.Value(app.FieldReceiptLink)
 
 	var record func(context.Context) error
-	if f.kind == domain.MovementIncome {
+	switch f.kind {
+	case domain.MovementTransfer:
+		if strings.TrimSpace(description) == "" {
+			description = text.TransferDescription(f.form.Value(app.FieldAccount), f.form.Value(app.FieldToAccount))
+		}
+		in := app.TransferInput{
+			Date: date, FromAccountID: account, ToAccountID: f.accountID(app.FieldToAccount), Amount: amount,
+			Description: description, Notes: notes, ConfirmNegative: confirmed,
+		}
+		record = func(ctx context.Context) error { _, err := f.svc.RecordTransfer(ctx, in); return err }
+	case domain.MovementIncome:
 		in := app.IncomeInput{
 			Date: date, AccountID: account, CategoryID: category, Amount: amount, Description: description,
 			Notes: notes, ReceiptLink: link, ManualReceiptPending: f.form.Value(fieldManualReceipt) == text.Yes,
 		}
 		record = func(ctx context.Context) error { _, err := f.svc.RecordIncome(ctx, in); return err }
-	} else {
+	default:
 		in := app.ExpenseInput{
 			Date: date, AccountID: account, CategoryID: category, Amount: amount, Description: description,
 			Notes: notes, ReceiptLink: link, ConfirmNegative: confirmed,
@@ -215,7 +241,11 @@ func (f *movementForm) onWritten(msg writtenMsg) tea.Cmd {
 	case msg.err == nil:
 		return tea.Batch(send(view.ChangedMsg{}), send(view.CloseOverlayMsg{}))
 	case errors.As(msg.err, &warning):
-		f.confirm = confirm.New(wrapped.Render(text.NegativeBalanceQuestion(warning.Account.Name, warning.Resulting.Format())))
+		question := text.NegativeBalanceQuestion
+		if f.kind == domain.MovementTransfer {
+			question = text.NegativeBalanceTransferQuestion
+		}
+		f.confirm = confirm.New(wrapped.Render(question(warning.Account.Name, warning.Resulting.Format())))
 	case errors.As(msg.err, &invalid) && f.form.SetErrors(invalid):
 	default:
 		f.failure = describe(msg.err)
